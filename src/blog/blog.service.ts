@@ -8,6 +8,7 @@ import { RevalidationService } from '../revalidation/revalidation.service';
 import { StorageService } from '../storage/storage.service';
 import { type CacheStore, NamespacedCache } from '../types/cache-store';
 import { RECENT_DAYS, RELATED_POST_COUNT } from './blog.constants';
+import { extractDescription, generateSlug } from './blog.utils';
 import type { CreatePostDto } from './dto/create-post.dto';
 import type { PostQueryDto, SearchQueryDto, TagQueryDto } from './dto/post-query.dto';
 import type { UpdatePostDto } from './dto/update-post.dto';
@@ -316,38 +317,46 @@ export class BlogService {
   // ─── Write ────────────────────────────────────────────────────────────────
 
   async create(dto: CreatePostDto) {
-    const existing = await this.prisma.post.findUnique({ where: { slug: dto.slug } });
-    if (existing) throw new ConflictException('Slug already exists');
+    const slug = generateSlug(dto.title);
+    const description = dto.description || extractDescription(dto.content);
 
-    const post = (await this.prisma.post.create({
-      data: {
-        title: dto.title,
-        slug: dto.slug,
-        description: dto.description,
-        content: dto.content,
-        thumbnailUrl: dto.thumbnailUrl,
-        category: dto.category,
-        published: dto.published ?? false,
-        postTags: dto.tags?.length
-          ? { create: await this.resolveTagConnections(dto.tags) }
-          : undefined,
-      },
-      include: { postTags: { include: { tag: true } } },
-    })) as PostWithTags;
+    try {
+      const post = (await this.prisma.post.create({
+        data: {
+          title: dto.title,
+          slug,
+          description,
+          content: dto.content,
+          category: dto.category,
+          published: dto.published ?? false,
+          postTags: dto.tags?.length
+            ? { create: await this.resolveTagConnections(dto.tags) }
+            : undefined,
+        },
+        include: { postTags: { include: { tag: true } } },
+      })) as PostWithTags;
 
-    const result = this.formatPost(post, true);
-    await this.cache.invalidate();
-    this.revalidation
-      .trigger('blog', post.slug)
-      .catch(err => this.logger.warn('revalidation failed', err));
-    this.adminLog.log({
-      action: 'create',
-      entity: 'post',
-      entityId: post.slug,
-      detail: post.title,
-      username: 'admin',
-    });
-    return result;
+      const result = this.formatPost(post, true);
+      await this.cache.invalidate();
+      this.revalidation
+        .trigger('blog', post.slug)
+        .catch(err => this.logger.warn('revalidation failed', err));
+      this.adminLog
+        .log({
+          action: 'create',
+          entity: 'post',
+          entityId: post.slug,
+          detail: post.title,
+          username: 'admin',
+        })
+        .catch(err => this.logger.warn('admin log failed', err));
+      return result;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('Slug collision. Please retry.');
+      }
+      throw error;
+    }
   }
 
   async update(slug: string, dto: UpdatePostDto) {
@@ -358,7 +367,6 @@ export class BlogService {
           ...(dto.title !== undefined && { title: dto.title }),
           ...(dto.description !== undefined && { description: dto.description }),
           ...(dto.content !== undefined && { content: dto.content }),
-          ...(dto.thumbnailUrl !== undefined && { thumbnailUrl: dto.thumbnailUrl }),
           ...(dto.category !== undefined && { category: dto.category }),
           ...(dto.published !== undefined && { published: dto.published }),
           ...(dto.tags !== undefined && {
@@ -414,11 +422,8 @@ export class BlogService {
     const existing = await this.prisma.post.findUnique({ where: { slug } });
     if (!existing) throw new NotFoundException('Post not found');
 
-    if (existing.thumbnailUrl) {
-      await this.storage.delete(existing.thumbnailUrl);
-    }
-
     const url = await this.storage.upload(buffer, filename, mimeType, 'blog/thumbnails');
+    const oldUrl = existing.thumbnailUrl;
 
     const post = (await this.prisma.post.update({
       where: { slug },
@@ -426,8 +431,20 @@ export class BlogService {
       include: { postTags: { include: { tag: true } } },
     })) as PostWithTags;
 
+    // DB 업데이트 성공 후 이전 썸네일 삭제
+    if (oldUrl) {
+      this.storage
+        .delete(oldUrl)
+        .catch(err => this.logger.warn('old thumbnail delete failed', err));
+    }
+
     await this.cache.invalidate();
     return this.formatPost(post, true);
+  }
+
+  async uploadContentImage(buffer: Buffer, filename: string, mimeType: string) {
+    const url = await this.storage.upload(buffer, filename, mimeType, 'blog/images');
+    return { url };
   }
 
   // ─── Private ──────────────────────────────────────────────────────────────

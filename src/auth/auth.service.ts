@@ -65,10 +65,12 @@ export class AuthService {
   async logout(refreshToken: string): Promise<void> {
     const tokenHash = this.hashToken(refreshToken);
     await this.prisma.refreshToken.deleteMany({ where: { tokenHash } });
+    this.revokeAllPreviewTokens();
   }
 
   async logoutAll(username: string): Promise<void> {
     await this.prisma.refreshToken.deleteMany({ where: { username } });
+    this.revokeAllPreviewTokens();
   }
 
   async cleanupExpiredTokens(): Promise<number> {
@@ -81,8 +83,7 @@ export class AuthService {
   // ─── Preview Token ────────────────────────────────────────────────────────
 
   private readonly previewTokens = new Map<string, number>();
-  private static readonly PREVIEW_TOKEN_TTL = 5 * 60 * 1000; // 5 minutes
-
+  private static readonly PREVIEW_TOKEN_TTL = 30 * 60 * 1000; // 30 minutes
   private static readonly MAX_PREVIEW_TOKENS = 10;
 
   createPreviewToken(): { token: string; expiresIn: number } {
@@ -96,7 +97,7 @@ export class AuthService {
     const token = randomBytes(32).toString('hex');
     this.previewTokens.set(token, Date.now() + AuthService.PREVIEW_TOKEN_TTL);
 
-    return { token, expiresIn: 300 };
+    return { token, expiresIn: 1800 };
   }
 
   verifyPreviewToken(token: string): boolean {
@@ -105,9 +106,11 @@ export class AuthService {
       this.previewTokens.delete(token);
       return false;
     }
-    // 일회용: 검증 성공 시 즉시 삭제
-    this.previewTokens.delete(token);
     return true;
+  }
+
+  revokeAllPreviewTokens(): void {
+    this.previewTokens.clear();
   }
 
   private cleanupPreviewTokens(): void {

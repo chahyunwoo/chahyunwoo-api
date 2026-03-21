@@ -11,8 +11,10 @@ import {
   Put,
   Query,
   Req,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
+import { AuthService } from '../auth/auth.service';
 import { Public } from '../common/decorators/public.decorator';
 import {
   ApiBadRequest,
@@ -21,8 +23,9 @@ import {
   ApiUnauthorized,
 } from '../common/swagger/error-responses';
 import type { MultipartRequest } from '../types/fastify.d';
-import { ALLOWED_MIME_TYPES } from './blog.constants';
+import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE } from './blog.constants';
 import { BlogService } from './blog.service';
+import { safeExtension } from './blog.utils';
 import { CreatePostDto } from './dto/create-post.dto';
 import { PostQueryDto, RecentQueryDto, SearchQueryDto, TagQueryDto } from './dto/post-query.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
@@ -30,7 +33,10 @@ import { UpdatePostDto } from './dto/update-post.dto';
 @ApiTags('blog')
 @Controller('api/blog')
 export class BlogController {
-  constructor(private readonly blogService: BlogService) {}
+  constructor(
+    private readonly blogService: BlogService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Public()
   @Get('posts/search')
@@ -68,6 +74,17 @@ export class BlogController {
   @ApiNotFound('Post')
   findOne(@Param('slug') slug: string) {
     return this.blogService.findBySlug(slug);
+  }
+
+  @Public()
+  @Get('posts/:slug/preview')
+  @ApiNotFound('Post')
+  @ApiUnauthorized()
+  async findOnePreview(@Param('slug') slug: string, @Query('token') token: string) {
+    if (!token || !this.authService.verifyPreviewToken(token)) {
+      throw new UnauthorizedException('Invalid or expired preview token');
+    }
+    return this.blogService.findBySlug(slug, true);
   }
 
   @Public()
@@ -111,13 +128,41 @@ export class BlogController {
   @ApiNotFound('Post')
   @ApiBadRequest('No file provided or invalid file type')
   async uploadThumbnail(@Param('slug') slug: string, @Req() request: MultipartRequest) {
+    const { buffer, mimeType } = await this.validateAndReadFile(request);
+    return this.blogService.updateThumbnail(
+      slug,
+      buffer,
+      `thumbnail${safeExtension(mimeType)}`,
+      mimeType,
+    );
+  }
+
+  @ApiBearerAuth()
+  @Post('images')
+  @ApiConsumes('multipart/form-data')
+  @ApiUnauthorized()
+  @ApiBadRequest('No file provided or invalid file type')
+  async uploadImage(@Req() request: MultipartRequest) {
+    const { buffer, mimeType } = await this.validateAndReadFile(request);
+    return this.blogService.uploadContentImage(buffer, `image${safeExtension(mimeType)}`, mimeType);
+  }
+
+  private async validateAndReadFile(request: MultipartRequest) {
     const data = await request.file();
     if (!data) throw new BadRequestException('No file provided');
-    if (!ALLOWED_MIME_TYPES.has(data.mimetype)) {
+
+    const buffer = await data.toBuffer();
+
+    if (buffer.length > MAX_FILE_SIZE) {
+      throw new BadRequestException('File too large (max 10 MB)');
+    }
+
+    const { fileTypeFromBuffer } = await import('file-type');
+    const detected = await fileTypeFromBuffer(buffer);
+    if (!detected || !ALLOWED_MIME_TYPES.has(detected.mime)) {
       throw new BadRequestException('Only JPEG, PNG, WebP, GIF are allowed');
     }
 
-    const buffer = await data.toBuffer();
-    return this.blogService.updateThumbnail(slug, buffer, data.filename, data.mimetype);
+    return { buffer, mimeType: detected.mime };
   }
 }
