@@ -2,12 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [dev, main]
   pull_request:
-    branches: [main]
+    branches: [dev, main]
 
 jobs:
-  test:
+  ci:
+    name: Lint / Build / Test
     runs-on: ubuntu-latest
 
     services:
@@ -42,6 +43,8 @@ jobs:
 
       - name: Generate Prisma client
         run: pnpm db:generate
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/hyunwoo_test
 
       - name: Lint
         run: pnpm lint
@@ -53,11 +56,12 @@ jobs:
         run: pnpm test:cov
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/hyunwoo_test
-          JWT_SECRET: test-secret-for-ci
+          JWT_SECRET: ci-test-secret-32-chars-minimum!!
           ADMIN_USERNAME: admin
-          ADMIN_PASSWORD_HASH: $2a$12$placeholder
+          ADMIN_PASSWORD_HASH: $2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/zo.RvCNPC
           R2_ACCOUNT_ID: placeholder
           R2_ACCESS_KEY_ID: placeholder
           R2_SECRET_ACCESS_KEY: placeholder
           R2_BUCKET_NAME: placeholder
           R2_PUBLIC_URL: https://placeholder.r2.dev
+          ALLOWED_ORIGINS: http://localhost:3000

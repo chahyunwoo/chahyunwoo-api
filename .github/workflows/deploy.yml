@@ -1,4 +1,4 @@
-name: Deploy
+name: Deploy to Production
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
 
 jobs:
   deploy:
+    name: Deploy to Mac mini
     runs-on: ubuntu-latest
-    needs: []
 
     steps:
       - name: Connect via Tailscale
@@ -18,7 +18,7 @@ jobs:
           oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
           tags: tag:ci
 
-      - name: Deploy to Mac mini
+      - name: Deploy
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.MACMINI_HOST }}
@@ -31,10 +31,17 @@ jobs:
 
             git pull origin main
 
-            docker compose build api
-            docker compose up -d
+            docker compose -p api-prod \
+              -f docker-compose.yml \
+              -f docker-compose.prod.yml \
+              build api
+
+            docker compose -p api-prod \
+              -f docker-compose.yml \
+              -f docker-compose.prod.yml \
+              up -d
+
             docker image prune -f
 
-            # Verify health (migrations run inside container on startup)
             sleep 10
             curl -sf http://localhost:8000/health || exit 1

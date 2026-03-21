@@ -1,0 +1,20 @@
+# Production — Mac mini port 8000
+# Usage: docker compose -p api-prod -f docker-compose.yml -f docker-compose.prod.yml up -d
+services:
+  api:
+    env_file: .env.prod
+    ports:
+      - "8000:8000"
+    environment:
+      NODE_ENV: production
+
+  db:
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hyunwoo}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_prod_data:
