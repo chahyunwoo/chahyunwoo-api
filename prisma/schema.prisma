@@ -4,7 +4,23 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["blog", "portfolio"]
+  schemas  = ["auth", "blog", "portfolio"]
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  tokenHash String   @unique @map("token_hash") @db.VarChar(128)
+  username  String   @db.VarChar(200)
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([username])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+  @@schema("auth")
 }
 
 // ─── Blog ────────────────────────────────────────────────────────────────────
