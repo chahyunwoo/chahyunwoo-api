@@ -2,6 +2,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Post, PostTag, Tag } from '@prisma/client';
 import { Prisma } from '@prisma/client';
+import { AdminLogService } from '../analytics/admin-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RevalidationService } from '../revalidation/revalidation.service';
 import { StorageService } from '../storage/storage.service';
@@ -30,6 +31,7 @@ export class BlogService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly revalidation: RevalidationService,
+    private readonly adminLog: AdminLogService,
     @Inject(CACHE_MANAGER) private readonly cache: CacheStore,
   ) {}
 
@@ -97,6 +99,13 @@ export class BlogService {
 
     if (!post || (!isAdmin && !post.published)) {
       throw new NotFoundException('Post not found');
+    }
+
+    // 조회수 증가 (fire-and-forget, 어드민 조회 제외)
+    if (!isAdmin) {
+      this.prisma.post
+        .update({ where: { slug }, data: { viewCount: { increment: 1 } } })
+        .catch(() => {});
     }
 
     const result = this.formatPost(post, true);
@@ -340,6 +349,13 @@ export class BlogService {
     const result = this.formatPost(post, true);
     await this.invalidateCache();
     this.revalidation.trigger('blog', post.slug);
+    this.adminLog.log({
+      action: 'create',
+      entity: 'post',
+      entityId: post.slug,
+      detail: post.title,
+      username: 'admin',
+    });
     return result;
   }
 
@@ -367,6 +383,13 @@ export class BlogService {
       const result = this.formatPost(post, true);
       await this.invalidateCache();
       this.revalidation.trigger('blog', post.slug);
+      this.adminLog.log({
+        action: 'update',
+        entity: 'post',
+        entityId: post.slug,
+        detail: post.title,
+        username: 'admin',
+      });
       return result;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
@@ -381,6 +404,7 @@ export class BlogService {
       await this.prisma.post.delete({ where: { slug } });
       await this.invalidateCache();
       this.revalidation.trigger('blog', slug);
+      this.adminLog.log({ action: 'delete', entity: 'post', entityId: slug, username: 'admin' });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         throw new NotFoundException('Post not found');

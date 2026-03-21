@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["auth", "blog", "portfolio"]
+  schemas  = ["analytics", "auth", "blog", "portfolio"]
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -34,6 +34,7 @@ model Post {
   thumbnailUrl String?   @map("thumbnail_url") @db.VarChar(1000)
   category     String?   @db.VarChar(200)
   published    Boolean   @default(false)
+  viewCount    Int       @default(0) @map("view_count")
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   postTags     PostTag[]
@@ -192,4 +193,38 @@ model EducationTranslation {
   @@unique([educationId, locale])
   @@map("education_translations")
   @@schema("portfolio")
+}
+
+// ─── Analytics ──────────────────────────────────────────────────────────────
+
+model PageView {
+  id        Int      @id @default(autoincrement())
+  path      String   @db.VarChar(500)
+  appName   String   @map("app_name") @db.VarChar(50)
+  referrer  String?  @db.VarChar(1000)
+  userAgent String?  @map("user_agent") @db.VarChar(1000)
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([appName, createdAt(sort: Desc)])
+  @@index([path])
+  @@index([createdAt(sort: Desc)])
+  @@map("page_views")
+  @@schema("analytics")
+}
+
+model AdminLog {
+  id        Int      @id @default(autoincrement())
+  action    String   @db.VarChar(50)
+  entity    String   @db.VarChar(50)
+  entityId  String?  @map("entity_id") @db.VarChar(100)
+  detail    String?  @db.Text
+  username  String   @db.VarChar(200)
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([entity])
+  @@map("admin_logs")
+  @@schema("analytics")
 }
