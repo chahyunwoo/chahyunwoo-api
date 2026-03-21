@@ -1,11 +1,15 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import type { Post, PostTag, Tag } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
-import { CreatePostDto } from './dto/create-post.dto';
-import { PostQueryDto, SearchQueryDto } from './dto/post-query.dto';
-import { UpdatePostDto } from './dto/update-post.dto';
+import type { CreatePostDto } from './dto/create-post.dto';
+import type { PostQueryDto, SearchQueryDto } from './dto/post-query.dto';
+import type { UpdatePostDto } from './dto/update-post.dto';
+
+type PostWithTags = Post & {
+  postTags: Array<PostTag & { tag: Tag }>;
+};
 
 @Injectable()
 export class BlogService {
@@ -18,16 +22,18 @@ export class BlogService {
     const { page = 1, limit = 10, category, tag } = query;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.PostWhereInput = {
+    const where = {
       published: true,
       ...(category && { category }),
       ...(tag && { postTags: { some: { tag: { slug: tag } } } }),
     };
 
+    const include = { postTags: { include: { tag: true } } } as const;
+
     const [posts, total] = await this.prisma.$transaction([
       this.prisma.post.findMany({
         where,
-        include: { postTags: { include: { tag: true } } },
+        include,
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
@@ -36,7 +42,7 @@ export class BlogService {
     ]);
 
     return {
-      posts: posts.map(this.formatPost),
+      posts: (posts as PostWithTags[]).map(post => this.formatPost(post)),
       total,
       page,
       limit,
@@ -45,10 +51,10 @@ export class BlogService {
   }
 
   async findBySlug(slug: string, isAdmin = false) {
-    const post = await this.prisma.post.findUnique({
+    const post = (await this.prisma.post.findUnique({
       where: { slug },
       include: { postTags: { include: { tag: true } } },
-    });
+    })) as PostWithTags | null;
 
     if (!post || (!isAdmin && !post.published)) {
       throw new NotFoundException('Post not found');
@@ -61,19 +67,21 @@ export class BlogService {
     const { q, page = 1, limit = 10 } = query;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.PostWhereInput = {
+    const where = {
       published: true,
       OR: [
-        { title: { contains: q, mode: 'insensitive' } },
-        { description: { contains: q, mode: 'insensitive' } },
-        { content: { contains: q, mode: 'insensitive' } },
+        { title: { contains: q, mode: 'insensitive' as const } },
+        { description: { contains: q, mode: 'insensitive' as const } },
+        { content: { contains: q, mode: 'insensitive' as const } },
       ],
     };
+
+    const include = { postTags: { include: { tag: true } } } as const;
 
     const [posts, total] = await this.prisma.$transaction([
       this.prisma.post.findMany({
         where,
-        include: { postTags: { include: { tag: true } } },
+        include,
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
@@ -82,7 +90,7 @@ export class BlogService {
     ]);
 
     return {
-      posts: posts.map(this.formatPost),
+      posts: (posts as PostWithTags[]).map(post => this.formatPost(post)),
       total,
       query: q,
     };
@@ -94,21 +102,27 @@ export class BlogService {
       select: { category: true, postTags: { select: { tag: true } } },
     });
 
-    const map = new Map<string, { count: number; tags: Map<string, { name: string; slug: string; count: number }> }>();
+    const map = new Map<
+      string,
+      { count: number; tags: Map<string, { name: string; slug: string; count: number }> }
+    >();
 
     for (const post of posts) {
-      const cat = post.category!;
-      if (!map.has(cat)) {
-        map.set(cat, { count: 0, tags: new Map() });
+      const cat = post.category as string;
+      let entry = map.get(cat);
+      if (!entry) {
+        entry = { count: 0, tags: new Map() };
+        map.set(cat, entry);
       }
-      const entry = map.get(cat)!;
       entry.count += 1;
 
       for (const { tag } of post.postTags) {
-        if (!entry.tags.has(tag.slug)) {
-          entry.tags.set(tag.slug, { name: tag.name, slug: tag.slug, count: 0 });
+        const existing = entry.tags.get(tag.slug);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          entry.tags.set(tag.slug, { name: tag.name, slug: tag.slug, count: 1 });
         }
-        entry.tags.get(tag.slug)!.count += 1;
       }
     }
 
@@ -125,7 +139,7 @@ export class BlogService {
     const existing = await this.prisma.post.findUnique({ where: { slug: dto.slug } });
     if (existing) throw new ConflictException(`Slug '${dto.slug}' already exists`);
 
-    const post = await this.prisma.post.create({
+    const post = (await this.prisma.post.create({
       data: {
         title: dto.title,
         slug: dto.slug,
@@ -135,13 +149,11 @@ export class BlogService {
         category: dto.category,
         published: dto.published ?? false,
         postTags: dto.tags?.length
-          ? {
-              create: await this.resolveTagConnections(dto.tags),
-            }
+          ? { create: await this.resolveTagConnections(dto.tags) }
           : undefined,
       },
       include: { postTags: { include: { tag: true } } },
-    });
+    })) as PostWithTags;
 
     return this.formatPost(post, true);
   }
@@ -150,7 +162,7 @@ export class BlogService {
     const existing = await this.prisma.post.findUnique({ where: { slug } });
     if (!existing) throw new NotFoundException('Post not found');
 
-    const post = await this.prisma.post.update({
+    const post = (await this.prisma.post.update({
       where: { slug },
       data: {
         ...(dto.title !== undefined && { title: dto.title }),
@@ -167,12 +179,12 @@ export class BlogService {
         }),
       },
       include: { postTags: { include: { tag: true } } },
-    });
+    })) as PostWithTags;
 
     return this.formatPost(post, true);
   }
 
-  async remove(slug: string) {
+  async remove(slug: string): Promise<void> {
     const existing = await this.prisma.post.findUnique({ where: { slug } });
     if (!existing) throw new NotFoundException('Post not found');
     await this.prisma.post.delete({ where: { slug } });
@@ -184,18 +196,18 @@ export class BlogService {
 
     const url = await this.storage.upload(buffer, filename, mimeType, 'blog/thumbnails');
 
-    const post = await this.prisma.post.update({
+    const post = (await this.prisma.post.update({
       where: { slug },
       data: { thumbnailUrl: url },
       include: { postTags: { include: { tag: true } } },
-    });
+    })) as PostWithTags;
 
     return this.formatPost(post, true);
   }
 
   private async resolveTagConnections(tagNames: string[]) {
     return Promise.all(
-      tagNames.map(async (name) => {
+      tagNames.map(async name => {
         const slug = this.slugifyTag(name);
         const tag = await this.prisma.tag.upsert({
           where: { slug },
@@ -208,18 +220,19 @@ export class BlogService {
   }
 
   private slugifyTag(name: string): string {
-    return name.toLowerCase().trim().replace(/[\s_]+/g, '-').replace(/[^\w-]/g, '');
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[\s_]+/g, '-')
+      .replace(/[^\w-]/g, '');
   }
 
-  private formatPost(
-    post: Prisma.PostGetPayload<{ include: { postTags: { include: { tag: true } } } }>,
-    withContent = false,
-  ) {
-    const { postTags, ...rest } = post;
+  private formatPost(post: PostWithTags, withContent = false) {
+    const { postTags, content, ...rest } = post;
     return {
       ...rest,
-      ...(withContent ? {} : { content: undefined }),
-      tags: postTags.map(({ tag }) => tag),
+      ...(withContent ? { content } : {}),
+      tags: postTags.map((pt: PostTag & { tag: Tag }) => pt.tag),
     };
   }
 }
