@@ -30,7 +30,7 @@ jobs:
 
             git pull origin main
 
-            docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml build api
+            docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml build --no-cache api
             docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml up -d
             docker image prune -f
 
