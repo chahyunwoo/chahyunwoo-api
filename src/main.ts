@@ -15,6 +15,7 @@ async function bootstrap() {
     new FastifyAdapter({ logger: process.env.NODE_ENV !== 'production' }),
   );
 
+  await app.register(import('@fastify/cookie'));
   await app.register(helmet);
   await app.register(multipart, {
     limits: { fileSize: 5 * 1024 * 1024 },
