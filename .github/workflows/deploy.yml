@@ -35,4 +35,4 @@ jobs:
             docker image prune -f
 
             sleep 10
-            curl -sf http://localhost:8000/health || exit 1
+            curl -sf http://localhost:4000/health || exit 1

@@ -31,6 +31,6 @@ COPY scripts/start.sh ./scripts/start.sh
 RUN chmod +x ./scripts/start.sh
 
 ENV NODE_ENV=production
-EXPOSE 8000
+EXPOSE 4000
 
 CMD ["/bin/sh", "scripts/start.sh"]

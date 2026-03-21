@@ -59,7 +59,7 @@ pnpm db:migrate:dev --name init
 pnpm start:dev
 ```
 
-Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
+Swagger UI: [http://localhost:4000/docs](http://localhost:4000/docs)
 
 ## 🗂️ Project Structure
 
