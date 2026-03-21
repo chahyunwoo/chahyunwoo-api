@@ -1,6 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsIn, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUrl,
+  ValidateNested,
+} from 'class-validator';
 
 class SocialLinkDto {
   @ApiProperty()
@@ -9,8 +17,7 @@ class SocialLinkDto {
   name: string;
 
   @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
+  @IsUrl({}, { message: 'href must be a valid URL' })
   href: string;
 
   @ApiPropertyOptional()

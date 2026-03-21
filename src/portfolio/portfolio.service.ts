@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RevalidationService } from '../revalidation/revalidation.service';
 import type {
@@ -6,7 +7,11 @@ import type {
   CreateExperienceDto,
   CreateProjectDto,
   CreateSkillDto,
+  UpdateEducationDto,
+  UpdateExperienceDto,
   UpdateProfileDto,
+  UpdateProjectDto,
+  UpdateSkillDto,
 } from './dto';
 
 @Injectable()
@@ -15,6 +20,15 @@ export class PortfolioService {
     private readonly prisma: PrismaService,
     private readonly revalidation: RevalidationService,
   ) {}
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  private handleNotFound(error: unknown, entity: string): never {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      throw new NotFoundException(`${entity} not found`);
+    }
+    throw error;
+  }
 
   // ─── Profile ────────────────────────────────────────────────────────────────
 
@@ -44,7 +58,7 @@ export class PortfolioService {
         data: {
           name: dto.name ?? '',
           location: dto.location ?? '',
-          socialLinks: dto.socialLinks ? JSON.parse(JSON.stringify(dto.socialLinks)) : undefined,
+          socialLinks: (dto.socialLinks ?? undefined) as unknown as Prisma.InputJsonValue,
         },
       });
     } else {
@@ -54,25 +68,27 @@ export class PortfolioService {
           ...(dto.name !== undefined && { name: dto.name }),
           ...(dto.location !== undefined && { location: dto.location }),
           ...(dto.socialLinks !== undefined && {
-            socialLinks: JSON.parse(JSON.stringify(dto.socialLinks)),
+            socialLinks: dto.socialLinks as unknown as Prisma.InputJsonValue,
           }),
         },
       });
     }
 
-    if (dto.translations) {
-      for (const t of dto.translations) {
-        await this.prisma.profileTranslation.upsert({
-          where: { profileId_locale: { profileId: profile.id, locale: t.locale } },
-          create: {
-            profileId: profile.id,
-            locale: t.locale,
-            jobTitle: t.jobTitle,
-            introduction: t.introduction,
-          },
-          update: { jobTitle: t.jobTitle, introduction: t.introduction },
-        });
-      }
+    if (dto.translations?.length) {
+      await Promise.all(
+        dto.translations.map(t =>
+          this.prisma.profileTranslation.upsert({
+            where: { profileId_locale: { profileId: profile.id, locale: t.locale } },
+            create: {
+              profileId: profile.id,
+              locale: t.locale,
+              jobTitle: t.jobTitle,
+              introduction: t.introduction,
+            },
+            update: { jobTitle: t.jobTitle, introduction: t.introduction },
+          }),
+        ),
+      );
     }
 
     await this.revalidation.trigger('portfolio');
@@ -123,44 +139,50 @@ export class PortfolioService {
     return result;
   }
 
-  async updateExperience(id: number, dto: CreateExperienceDto) {
-    const existing = await this.prisma.experience.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Experience not found');
-
-    const result = await this.prisma.experience.update({
-      where: { id },
-      data: {
-        sortOrder: dto.sortOrder ?? existing.sortOrder,
-        startDate: dto.startDate,
-        endDate: dto.endDate,
-        isCurrent: dto.isCurrent ?? existing.isCurrent,
-        translations: {
-          deleteMany: {},
-          create: dto.translations.map(t => ({
-            locale: t.locale,
-            title: t.title,
-            role: t.role,
-            responsibilities: t.responsibilities,
-          })),
+  async updateExperience(id: number, dto: UpdateExperienceDto) {
+    try {
+      const result = await this.prisma.experience.update({
+        where: { id },
+        data: {
+          ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
+          ...(dto.startDate !== undefined && { startDate: dto.startDate }),
+          ...(dto.endDate !== undefined && { endDate: dto.endDate }),
+          ...(dto.isCurrent !== undefined && { isCurrent: dto.isCurrent }),
+          ...(dto.translations && {
+            translations: {
+              deleteMany: {},
+              create: dto.translations.map(t => ({
+                locale: t.locale,
+                title: t.title,
+                role: t.role,
+                responsibilities: t.responsibilities,
+              })),
+            },
+          }),
         },
-      },
-      include: { translations: true },
-    });
-    await this.revalidation.trigger('portfolio');
-    return result;
+        include: { translations: true },
+      });
+      await this.revalidation.trigger('portfolio');
+      return result;
+    } catch (error) {
+      this.handleNotFound(error, 'Experience');
+    }
   }
 
   async deleteExperience(id: number): Promise<void> {
-    const existing = await this.prisma.experience.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Experience not found');
-    await this.prisma.experience.delete({ where: { id } });
-    await this.revalidation.trigger('portfolio');
+    try {
+      await this.prisma.experience.delete({ where: { id } });
+      await this.revalidation.trigger('portfolio');
+    } catch (error) {
+      this.handleNotFound(error, 'Experience');
+    }
   }
 
   // ─── Projects ───────────────────────────────────────────────────────────────
 
-  async getProjects(locale: string) {
+  async getProjects(locale: string, featured?: boolean) {
     const projects = await this.prisma.project.findMany({
+      where: featured !== undefined ? { featured } : undefined,
       include: { translations: { where: { locale } } },
       orderBy: { sortOrder: 'asc' },
     });
@@ -201,38 +223,43 @@ export class PortfolioService {
     return result;
   }
 
-  async updateProject(id: number, dto: CreateProjectDto) {
-    const existing = await this.prisma.project.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Project not found');
-
-    const result = await this.prisma.project.update({
-      where: { id },
-      data: {
-        sortOrder: dto.sortOrder ?? existing.sortOrder,
-        demoUrl: dto.demoUrl,
-        repoUrl: dto.repoUrl,
-        techStack: dto.techStack,
-        featured: dto.featured ?? existing.featured,
-        translations: {
-          deleteMany: {},
-          create: dto.translations.map(t => ({
-            locale: t.locale,
-            title: t.title,
-            description: t.description,
-          })),
+  async updateProject(id: number, dto: UpdateProjectDto) {
+    try {
+      const result = await this.prisma.project.update({
+        where: { id },
+        data: {
+          ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
+          ...(dto.demoUrl !== undefined && { demoUrl: dto.demoUrl }),
+          ...(dto.repoUrl !== undefined && { repoUrl: dto.repoUrl }),
+          ...(dto.techStack !== undefined && { techStack: dto.techStack }),
+          ...(dto.featured !== undefined && { featured: dto.featured }),
+          ...(dto.translations && {
+            translations: {
+              deleteMany: {},
+              create: dto.translations.map(t => ({
+                locale: t.locale,
+                title: t.title,
+                description: t.description,
+              })),
+            },
+          }),
         },
-      },
-      include: { translations: true },
-    });
-    await this.revalidation.trigger('portfolio');
-    return result;
+        include: { translations: true },
+      });
+      await this.revalidation.trigger('portfolio');
+      return result;
+    } catch (error) {
+      this.handleNotFound(error, 'Project');
+    }
   }
 
   async deleteProject(id: number): Promise<void> {
-    const existing = await this.prisma.project.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Project not found');
-    await this.prisma.project.delete({ where: { id } });
-    await this.revalidation.trigger('portfolio');
+    try {
+      await this.prisma.project.delete({ where: { id } });
+      await this.revalidation.trigger('portfolio');
+    } catch (error) {
+      this.handleNotFound(error, 'Project');
+    }
   }
 
   // ─── Skills ─────────────────────────────────────────────────────────────────
@@ -257,27 +284,30 @@ export class PortfolioService {
     return result;
   }
 
-  async updateSkill(id: number, dto: CreateSkillDto) {
-    const existing = await this.prisma.skill.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Skill not found');
-
-    const result = await this.prisma.skill.update({
-      where: { id },
-      data: {
-        category: dto.category,
-        name: dto.name,
-        sortOrder: dto.sortOrder ?? existing.sortOrder,
-      },
-    });
-    await this.revalidation.trigger('portfolio');
-    return result;
+  async updateSkill(id: number, dto: UpdateSkillDto) {
+    try {
+      const result = await this.prisma.skill.update({
+        where: { id },
+        data: {
+          ...(dto.category !== undefined && { category: dto.category }),
+          ...(dto.name !== undefined && { name: dto.name }),
+          ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
+        },
+      });
+      await this.revalidation.trigger('portfolio');
+      return result;
+    } catch (error) {
+      this.handleNotFound(error, 'Skill');
+    }
   }
 
   async deleteSkill(id: number): Promise<void> {
-    const existing = await this.prisma.skill.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Skill not found');
-    await this.prisma.skill.delete({ where: { id } });
-    await this.revalidation.trigger('portfolio');
+    try {
+      await this.prisma.skill.delete({ where: { id } });
+      await this.revalidation.trigger('portfolio');
+    } catch (error) {
+      this.handleNotFound(error, 'Skill');
+    }
   }
 
   // ─── Education ──────────────────────────────────────────────────────────────
@@ -318,34 +348,39 @@ export class PortfolioService {
     return result;
   }
 
-  async updateEducation(id: number, dto: CreateEducationDto) {
-    const existing = await this.prisma.education.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Education not found');
-
-    const result = await this.prisma.education.update({
-      where: { id },
-      data: {
-        period: dto.period,
-        sortOrder: dto.sortOrder ?? existing.sortOrder,
-        translations: {
-          deleteMany: {},
-          create: dto.translations.map(t => ({
-            locale: t.locale,
-            institution: t.institution,
-            degree: t.degree,
-          })),
+  async updateEducation(id: number, dto: UpdateEducationDto) {
+    try {
+      const result = await this.prisma.education.update({
+        where: { id },
+        data: {
+          ...(dto.period !== undefined && { period: dto.period }),
+          ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
+          ...(dto.translations && {
+            translations: {
+              deleteMany: {},
+              create: dto.translations.map(t => ({
+                locale: t.locale,
+                institution: t.institution,
+                degree: t.degree,
+              })),
+            },
+          }),
         },
-      },
-      include: { translations: true },
-    });
-    await this.revalidation.trigger('portfolio');
-    return result;
+        include: { translations: true },
+      });
+      await this.revalidation.trigger('portfolio');
+      return result;
+    } catch (error) {
+      this.handleNotFound(error, 'Education');
+    }
   }
 
   async deleteEducation(id: number): Promise<void> {
-    const existing = await this.prisma.education.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Education not found');
-    await this.prisma.education.delete({ where: { id } });
-    await this.revalidation.trigger('portfolio');
+    try {
+      await this.prisma.education.delete({ where: { id } });
+      await this.revalidation.trigger('portfolio');
+    } catch (error) {
+      this.handleNotFound(error, 'Education');
+    }
   }
 }

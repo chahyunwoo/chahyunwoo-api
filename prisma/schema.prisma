@@ -114,6 +114,7 @@ model Project {
   translations ProjectTranslation[]
 
   @@index([sortOrder])
+  @@index([featured])
   @@map("projects")
   @@schema("portfolio")
 }
