@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 
+import { AnalyticsModule } from './analytics/analytics.module';
 import { AuthModule } from './auth/auth.module';
 import { BlogModule } from './blog/blog.module';
 import { HttpModule } from './common/http.module';
@@ -20,6 +21,7 @@ import { StorageModule } from './storage/storage.module';
     PrismaModule,
     StorageModule,
     RevalidationModule,
+    AnalyticsModule,
     AuthModule,
     BlogModule,
     PortfolioModule,
