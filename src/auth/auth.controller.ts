@@ -87,7 +87,7 @@ export class AuthController {
   @Post('session/extend')
   @HttpCode(HttpStatus.OK)
   async extendSession(@Res() reply: FastifyReply) {
-    reply.setCookie(SESSION_TIMEOUT_COOKIE, String(Date.now()), {
+    reply.setCookie(SESSION_TIMEOUT_COOKIE, String(Date.now() + SESSION_TIMEOUT * 1000), {
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
@@ -118,7 +118,7 @@ export class AuthController {
       maxAge: REFRESH_TOKEN_MAX_AGE,
     });
 
-    reply.setCookie(SESSION_TIMEOUT_COOKIE, String(Date.now()), {
+    reply.setCookie(SESSION_TIMEOUT_COOKIE, String(Date.now() + SESSION_TIMEOUT * 1000), {
       httpOnly: false,
       secure: isProduction,
       sameSite: 'strict',
