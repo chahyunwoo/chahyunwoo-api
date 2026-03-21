@@ -79,25 +79,38 @@ export class AnalyticsService {
   // ─── Visitor Stats ────────────────────────────────────────────────────────
 
   async getVisitorStats(days?: number, appName?: string) {
-    const d = clamp(days, 30, MAX_DAYS);
-    const since = new Date();
-    since.setDate(since.getDate() - d);
+    const dateFilter = days
+      ? (() => {
+          const d = clamp(days, 1, MAX_DAYS);
+          const since = new Date();
+          since.setDate(since.getDate() - d);
+          return since;
+        })()
+      : undefined;
 
     const appFilter = appName ? Prisma.sql`AND app_name = ${appName}` : Prisma.empty;
+    const dateWhere = dateFilter
+      ? Prisma.sql`WHERE created_at >= ${dateFilter} ${appFilter}`
+      : appName
+        ? Prisma.sql`WHERE app_name = ${appName}`
+        : Prisma.sql`WHERE 1=1`;
 
     const [totalViews, uniqueResult, dailyResult] = await Promise.all([
       this.prisma.pageView.count({
-        where: { createdAt: { gte: since }, ...(appName && { appName }) },
+        where: {
+          ...(dateFilter && { createdAt: { gte: dateFilter } }),
+          ...(appName && { appName }),
+        },
       }),
       this.prisma.$queryRaw<[{ count: bigint }]>`
         SELECT COUNT(DISTINCT ip_address) as count
         FROM analytics.page_views
-        WHERE created_at >= ${since} ${appFilter}
+        ${dateWhere}
       `,
       this.prisma.$queryRaw<{ date: string; count: bigint }[]>`
         SELECT DATE(created_at) as date, COUNT(*) as count
         FROM analytics.page_views
-        WHERE created_at >= ${since} ${appFilter}
+        ${dateWhere}
         GROUP BY DATE(created_at)
         ORDER BY date ASC
       `,
