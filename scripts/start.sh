@@ -5,4 +5,4 @@ echo "Running database migrations..."
 npx prisma migrate deploy
 
 echo "Starting API server..."
-exec node dist/main
+exec node dist/src/main
