@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { Public } from '../common/decorators/public.decorator';
@@ -91,6 +91,29 @@ export class AuthController {
       maxAge: SESSION_TIMEOUT,
     });
     return reply.send({ timeout: SESSION_TIMEOUT });
+  }
+
+  // ─── Preview ──────────────────────────────────────────────────────────────
+
+  @ApiBearerAuth()
+  @Post('preview-token')
+  @HttpCode(HttpStatus.OK)
+  createPreviewToken() {
+    return this.authService.createPreviewToken();
+  }
+
+  @Public()
+  @Get('verify-preview')
+  verifyPreview(@Query('token') token: string, @Res() reply: FastifyReply) {
+    const valid = this.authService.verifyPreviewToken(token);
+    if (!valid) {
+      return reply.status(HttpStatus.UNAUTHORIZED).send({
+        statusCode: 401,
+        error: 'Unauthorized',
+        message: 'Invalid or expired preview token',
+      });
+    }
+    return reply.send({ valid: true });
   }
 
   // ─── Private ──────────────────────────────────────────────────────────────
