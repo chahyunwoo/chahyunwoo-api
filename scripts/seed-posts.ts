@@ -1,13 +1,13 @@
 /**
- * MDX 파일 + 썸네일 이미지를 파싱하여 R2 업로드 후 DB에 시드
+ * MDX 파일 + 이미지(썸네일/본문)를 R2에 업로드하고 DB에 시드
  *
  * Usage:
- *   npx tsx scripts/seed-posts.ts <posts-dir> <thumbnails-dir>
+ *   npx tsx scripts/seed-posts.ts <posts-dir> <public-dir>
  *
  * Example:
  *   npx tsx scripts/seed-posts.ts \
  *     ../hyunwoo-blog-nextjs/src/posts \
- *     ../hyunwoo-blog-nextjs/public/thumbnail
+ *     ../hyunwoo-blog-nextjs/public
  */
 import 'dotenv/config';
 import fs from 'node:fs';
@@ -60,7 +60,23 @@ async function createPrismaClient(): Promise<PrismaClient> {
   return new PrismaClient({ adapter });
 }
 
-// ─── Parsers ────────────────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function slugifyTag(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[\s_]+/g, '-')
+    .replace(/[^\w-]/g, '');
+}
+
+const MIME_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+};
 
 function parsePostFile(filePath: string): ParsedPost {
   const raw = fs.readFileSync(filePath, 'utf-8');
@@ -81,86 +97,98 @@ function parsePostFile(filePath: string): ParsedPost {
   };
 }
 
-function slugifyTag(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[\s_]+/g, '-')
-    .replace(/[^\w-]/g, '');
-}
-
-const MIME_TYPES: Record<string, string> = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp',
-  '.gif': 'image/gif',
-};
-
 // ─── R2 Upload ──────────────────────────────────────────────────────────────
 
-async function uploadThumbnail(
+async function uploadFileToR2(
   s3: S3Client,
   bucket: string,
-  thumbnailsDir: string,
-  thumbnailPath: string,
+  localPath: string,
+  r2Key: string,
 ): Promise<string | null> {
-  const filename = path.basename(thumbnailPath);
-  const localPath = path.join(thumbnailsDir, filename);
-
   if (!fs.existsSync(localPath)) {
-    console.warn(`  Thumbnail not found: ${localPath}`);
+    console.warn(`  File not found: ${localPath}`);
     return null;
   }
 
-  const ext = path.extname(filename).toLowerCase();
+  const ext = path.extname(localPath).toLowerCase();
   const mimeType = MIME_TYPES[ext];
   if (!mimeType) {
     console.warn(`  Unsupported image type: ${ext}`);
     return null;
   }
 
-  const key = `blog/thumbnails/${filename}`;
   const buffer = fs.readFileSync(localPath);
-
   await s3.send(
     new PutObjectCommand({
       Bucket: bucket,
-      Key: key,
+      Key: r2Key,
       Body: buffer,
       ContentType: mimeType,
     }),
   );
 
-  const publicUrl = getEnvOrThrow('R2_PUBLIC_URL');
-  return `${publicUrl}/${key}`;
+  return `${getEnvOrThrow('R2_PUBLIC_URL')}/${r2Key}`;
+}
+
+async function uploadPostImages(
+  s3: S3Client,
+  bucket: string,
+  publicDir: string,
+  slug: string,
+): Promise<number> {
+  const postImagesDir = path.join(publicDir, 'posts', slug);
+  if (!fs.existsSync(postImagesDir)) return 0;
+
+  const images = await fg('*.{png,jpg,jpeg,webp,gif}', {
+    cwd: postImagesDir,
+    absolute: true,
+  });
+
+  for (const imagePath of images) {
+    const filename = path.basename(imagePath);
+    const r2Key = `blog/posts/${slug}/${filename}`;
+    await uploadFileToR2(s3, bucket, imagePath, r2Key);
+  }
+
+  return images.length;
+}
+
+function rewriteImagePaths(content: string, publicUrl: string): string {
+  // /posts/slug/image.png → https://assets.chahyunwoo.dev/blog/posts/slug/image.png
+  // /thumbnail/image.png → https://assets.chahyunwoo.dev/blog/thumbnails/image.png
+  return content
+    .replace(/src="\/posts\//g, `src="${publicUrl}/blog/posts/`)
+    .replace(/\(\/posts\//g, `(${publicUrl}/blog/posts/`)
+    .replace(/src="\/thumbnail\//g, `src="${publicUrl}/blog/thumbnails/`)
+    .replace(/\(\/thumbnail\//g, `(${publicUrl}/blog/thumbnails/`);
 }
 
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
-  const [postsDir, thumbnailsDir] = process.argv.slice(2);
+  const [postsDir, publicDir] = process.argv.slice(2);
 
-  if (!postsDir || !thumbnailsDir) {
-    console.error('Usage: npx tsx scripts/seed-posts.ts <posts-dir> <thumbnails-dir>');
+  if (!postsDir || !publicDir) {
+    console.error('Usage: npx tsx scripts/seed-posts.ts <posts-dir> <public-dir>');
     process.exit(1);
   }
 
   const resolvedPostsDir = path.resolve(postsDir);
-  const resolvedThumbnailsDir = path.resolve(thumbnailsDir);
+  const resolvedPublicDir = path.resolve(publicDir);
 
   if (!fs.existsSync(resolvedPostsDir)) {
     console.error(`Posts directory not found: ${resolvedPostsDir}`);
     process.exit(1);
   }
-  if (!fs.existsSync(resolvedThumbnailsDir)) {
-    console.error(`Thumbnails directory not found: ${resolvedThumbnailsDir}`);
+  if (!fs.existsSync(resolvedPublicDir)) {
+    console.error(`Public directory not found: ${resolvedPublicDir}`);
     process.exit(1);
   }
 
   const prisma = await createPrismaClient();
   const s3 = createS3Client();
   const bucket = getEnvOrThrow('R2_BUCKET_NAME');
+  const publicUrl = getEnvOrThrow('R2_PUBLIC_URL');
 
   try {
     const files = await fg('*.mdx', { cwd: resolvedPostsDir, absolute: true });
@@ -189,11 +217,12 @@ async function main() {
     // 포스트 시드
     let created = 0;
     let skipped = 0;
+    let totalImages = 0;
 
     for (const post of posts) {
       const existing = await prisma.post.findUnique({ where: { slug: post.slug } });
       if (existing) {
-        console.log(`  SKIP  ${post.slug} (already exists)`);
+        console.log(`  SKIP  ${post.slug}`);
         skipped++;
         continue;
       }
@@ -201,15 +230,24 @@ async function main() {
       // 썸네일 R2 업로드
       let thumbnailUrl: string | null = null;
       if (post.meta.thumbnail) {
-        thumbnailUrl = await uploadThumbnail(s3, bucket, resolvedThumbnailsDir, post.meta.thumbnail);
+        const filename = path.basename(post.meta.thumbnail);
+        const localPath = path.join(resolvedPublicDir, 'thumbnail', filename);
+        thumbnailUrl = await uploadFileToR2(s3, bucket, localPath, `blog/thumbnails/${filename}`);
       }
+
+      // 본문 이미지 R2 업로드
+      const imageCount = await uploadPostImages(s3, bucket, resolvedPublicDir, post.slug);
+      totalImages += imageCount;
+
+      // 본문 내 이미지 경로 치환
+      const rewrittenContent = rewriteImagePaths(post.content, publicUrl);
 
       await prisma.post.create({
         data: {
           title: post.meta.title,
           slug: post.slug,
           description: post.meta.description || null,
-          content: post.content,
+          content: rewrittenContent,
           thumbnailUrl,
           category: post.meta.mainTag || null,
           published: post.meta.published,
@@ -222,11 +260,14 @@ async function main() {
         },
       });
 
-      console.log(`  CREATE ${post.slug}${thumbnailUrl ? ' (+ thumbnail)' : ''}`);
+      const extras = [thumbnailUrl && 'thumbnail', imageCount > 0 && `${imageCount} images`]
+        .filter(Boolean)
+        .join(', ');
+      console.log(`  CREATE ${post.slug}${extras ? ` (${extras})` : ''}`);
       created++;
     }
 
-    console.log(`\nDone: ${created} created, ${skipped} skipped`);
+    console.log(`\nDone: ${created} created, ${skipped} skipped, ${totalImages} post images uploaded`);
   } finally {
     await prisma.$disconnect();
   }
