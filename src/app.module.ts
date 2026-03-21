@@ -1,6 +1,7 @@
 import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 import { AnalyticsModule } from './analytics/analytics.module';
@@ -17,6 +18,7 @@ import { StorageModule } from './storage/storage.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     CacheModule.register({ isGlobal: true, ttl: 60_000 }),
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PrismaModule,
     StorageModule,

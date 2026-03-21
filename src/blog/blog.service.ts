@@ -56,7 +56,7 @@ export class BlogService {
       this.prisma.post.findMany({
         where,
         include,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { publishedAt: 'desc' },
         skip,
         take: limit,
       }),
@@ -213,7 +213,7 @@ export class BlogService {
     const posts = await this.prisma.post.findMany({
       where: { published: true },
       include: { postTags: { include: { tag: true } } },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { publishedAt: 'desc' },
       take: limit,
     });
 
@@ -321,14 +321,21 @@ export class BlogService {
     const description = dto.description || extractDescription(dto.content);
 
     try {
+      // DB에 먼저 저장 (temp URL 그대로)
       const post = (await this.prisma.post.create({
         data: {
           title: dto.title,
           slug,
           description,
           content: dto.content,
+          thumbnailUrl: dto.thumbnailUrl,
           category: dto.category,
           published: dto.published ?? false,
+          publishedAt: dto.publishedAt
+            ? new Date(dto.publishedAt)
+            : dto.published
+              ? new Date()
+              : null,
           postTags: dto.tags?.length
             ? { create: await this.resolveTagConnections(dto.tags) }
             : undefined,
@@ -336,7 +343,22 @@ export class BlogService {
         include: { postTags: { include: { tag: true } } },
       })) as PostWithTags;
 
-      const result = this.formatPost(post, true);
+      // DB 성공 후 temp 이미지를 확정 경로로 이동
+      let updated = post;
+      try {
+        const finalized = await this.finalizeImages(slug, post.content, post.thumbnailUrl);
+        updated = (await this.prisma.post.update({
+          where: { slug },
+          data: { content: finalized.content, thumbnailUrl: finalized.thumbnailUrl },
+          include: { postTags: { include: { tag: true } } },
+        })) as PostWithTags;
+      } catch (moveError) {
+        this.logger.error('Image finalization failed, rolling back post', moveError);
+        await this.prisma.post.delete({ where: { slug } }).catch(() => {});
+        throw moveError;
+      }
+
+      const result = this.formatPost(updated, true);
       await this.cache.invalidate();
       this.revalidation
         .trigger('blog', post.slug)
@@ -361,14 +383,19 @@ export class BlogService {
 
   async update(slug: string, dto: UpdatePostDto) {
     try {
+      // DB에 먼저 저장 (temp URL 그대로)
       const post = (await this.prisma.post.update({
         where: { slug },
         data: {
           ...(dto.title !== undefined && { title: dto.title }),
           ...(dto.description !== undefined && { description: dto.description }),
           ...(dto.content !== undefined && { content: dto.content }),
+          ...(dto.thumbnailUrl !== undefined && { thumbnailUrl: dto.thumbnailUrl }),
           ...(dto.category !== undefined && { category: dto.category }),
           ...(dto.published !== undefined && { published: dto.published }),
+          ...(dto.publishedAt !== undefined && { publishedAt: new Date(dto.publishedAt) }),
+          // published=true로 변경 시 publishedAt 자동 세팅
+          ...(dto.published === true && !dto.publishedAt && { publishedAt: new Date() }),
           ...(dto.tags !== undefined && {
             postTags: {
               deleteMany: {},
@@ -379,18 +406,39 @@ export class BlogService {
         include: { postTags: { include: { tag: true } } },
       })) as PostWithTags;
 
-      const result = this.formatPost(post, true);
+      // DB 성공 후 temp 이미지 확정 경로로 이동
+      if (dto.content || dto.thumbnailUrl) {
+        try {
+          const finalized = await this.finalizeImages(slug, post.content, post.thumbnailUrl);
+          await this.prisma.post.update({
+            where: { slug },
+            data: { content: finalized.content, thumbnailUrl: finalized.thumbnailUrl },
+          });
+        } catch (moveError) {
+          this.logger.error('Image finalization failed during update', moveError);
+          // DB에는 temp URL이 남지만, temp 파일은 유지되므로 24시간 내 재시도 가능
+        }
+      }
+
+      const updated = (await this.prisma.post.findUniqueOrThrow({
+        where: { slug },
+        include: { postTags: { include: { tag: true } } },
+      })) as PostWithTags;
+
+      const result = this.formatPost(updated, true);
       await this.cache.invalidate();
       this.revalidation
-        .trigger('blog', post.slug)
+        .trigger('blog', slug)
         .catch(err => this.logger.warn('revalidation failed', err));
-      this.adminLog.log({
-        action: 'update',
-        entity: 'post',
-        entityId: post.slug,
-        detail: post.title,
-        username: 'admin',
-      });
+      this.adminLog
+        .log({
+          action: 'update',
+          entity: 'post',
+          entityId: slug,
+          detail: updated.title,
+          username: 'admin',
+        })
+        .catch(err => this.logger.warn('admin log failed', err));
       return result;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
@@ -418,36 +466,45 @@ export class BlogService {
     }
   }
 
-  async updateThumbnail(slug: string, buffer: Buffer, filename: string, mimeType: string) {
-    const existing = await this.prisma.post.findUnique({ where: { slug } });
-    if (!existing) throw new NotFoundException('Post not found');
-
-    const url = await this.storage.upload(buffer, filename, mimeType, 'blog/thumbnails');
-    const oldUrl = existing.thumbnailUrl;
-
-    const post = (await this.prisma.post.update({
-      where: { slug },
-      data: { thumbnailUrl: url },
-      include: { postTags: { include: { tag: true } } },
-    })) as PostWithTags;
-
-    // DB 업데이트 성공 후 이전 썸네일 삭제
-    if (oldUrl) {
-      this.storage
-        .delete(oldUrl)
-        .catch(err => this.logger.warn('old thumbnail delete failed', err));
-    }
-
-    await this.cache.invalidate();
-    return this.formatPost(post, true);
-  }
-
-  async uploadContentImage(buffer: Buffer, filename: string, mimeType: string) {
-    const url = await this.storage.upload(buffer, filename, mimeType, 'blog/images');
+  async uploadTempImage(buffer: Buffer, filename: string, mimeType: string) {
+    const url = await this.storage.upload(buffer, filename, mimeType, 'blog/temp');
     return { url };
   }
 
   // ─── Private ──────────────────────────────────────────────────────────────
+
+  /**
+   * content + thumbnailUrl에서 temp URL을 찾아서 확정 경로로 이동
+   * blog/temp/xxx.png → blog/posts/{slug}/xxx.png
+   * blog/temp/xxx.jpg (thumbnail) → blog/thumbnails/{slug}.ext
+   */
+  private async finalizeImages(slug: string, content: string, thumbnailUrl?: string | null) {
+    const publicUrl = this.storage.getPublicUrl();
+    const tempPrefix = `${publicUrl}/blog/temp/`;
+    let finalContent = content;
+
+    // content 내 temp 이미지 이동
+    const tempUrls =
+      content.match(
+        new RegExp(`${tempPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^"\\s)]+`, 'g'),
+      ) ?? [];
+    for (const tempUrl of tempUrls) {
+      const filename = tempUrl.slice(tempPrefix.length);
+      const destKey = `blog/posts/${slug}/${filename}`;
+      const newUrl = await this.storage.move(tempUrl, destKey);
+      finalContent = finalContent.replace(tempUrl, newUrl);
+    }
+
+    // 썸네일 temp → 확정 경로
+    let finalThumbnail = thumbnailUrl;
+    if (thumbnailUrl?.startsWith(tempPrefix)) {
+      const ext = thumbnailUrl.slice(thumbnailUrl.lastIndexOf('.'));
+      const destKey = `blog/thumbnails/${slug}${ext}`;
+      finalThumbnail = await this.storage.move(thumbnailUrl, destKey);
+    }
+
+    return { content: finalContent, thumbnailUrl: finalThumbnail };
+  }
 
   private async resolveTagConnections(tagNames: string[]) {
     return Promise.all(
