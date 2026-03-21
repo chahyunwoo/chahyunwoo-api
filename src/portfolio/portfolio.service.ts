@@ -1,5 +1,5 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 interface CacheStore {
@@ -15,6 +15,7 @@ import { StorageService } from '../storage/storage.service';
 import type {
   CreateEducationDto,
   CreateExperienceDto,
+  CreateLocaleDto,
   CreateProjectDto,
   CreateSkillDto,
   UpdateEducationDto,
@@ -44,6 +45,33 @@ export class PortfolioService {
 
   private async invalidateCache(): Promise<void> {
     await this.cache.clear();
+  }
+
+  // ─── Locales ────────────────────────────────────────────────────────────────
+
+  async getLocales() {
+    return this.prisma.locale.findMany({ orderBy: { id: 'asc' } });
+  }
+
+  async createLocale(dto: CreateLocaleDto) {
+    try {
+      return await this.prisma.locale.create({
+        data: { code: dto.code, label: dto.label },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('Locale already exists');
+      }
+      throw error;
+    }
+  }
+
+  async deleteLocale(id: number): Promise<void> {
+    try {
+      await this.prisma.locale.delete({ where: { id } });
+    } catch (error) {
+      this.handleNotFound(error, 'Locale');
+    }
   }
 
   private handleNotFound(error: unknown, entity: string): never {

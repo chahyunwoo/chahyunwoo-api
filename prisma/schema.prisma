@@ -52,6 +52,15 @@ model PostTag {
 
 // ─── Portfolio ───────────────────────────────────────────────────────────────
 
+model Locale {
+  id    Int    @id @default(autoincrement())
+  code  String @unique @db.VarChar(5)
+  label String @db.VarChar(50)
+
+  @@map("locales")
+  @@schema("portfolio")
+}
+
 model Profile {
   id           Int                  @id @default(autoincrement())
   name         String               @db.VarChar(100)

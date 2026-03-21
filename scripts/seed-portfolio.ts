@@ -18,6 +18,21 @@ async function main() {
   const prisma = new PrismaClient({ adapter });
 
   try {
+    // ─── Locales ──────────────────────────────────────────────────────────────
+    const locales = [
+      { code: 'ko', label: '한국어' },
+      { code: 'en', label: 'English' },
+      { code: 'jp', label: '日本語' },
+    ];
+    for (const locale of locales) {
+      await prisma.locale.upsert({
+        where: { code: locale.code },
+        create: locale,
+        update: {},
+      });
+    }
+    console.log(`Locales upserted: ${locales.length}`);
+
     // ─── Profile ──────────────────────────────────────────────────────────────
     const profile = await prisma.profile.create({
       data: {
