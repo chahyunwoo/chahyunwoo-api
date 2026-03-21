@@ -9,6 +9,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUrl,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -39,12 +40,12 @@ export class CreateProjectDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsUrl({}, { message: 'demoUrl must be a valid URL' })
   demoUrl?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsUrl({}, { message: 'repoUrl must be a valid URL' })
   repoUrl?: string;
 
   @ApiProperty({ type: [String] })

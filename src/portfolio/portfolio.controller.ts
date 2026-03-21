@@ -18,8 +18,13 @@ import {
   CreateExperienceDto,
   CreateProjectDto,
   CreateSkillDto,
+  GetProjectsQueryDto,
   LocaleQueryDto,
+  UpdateEducationDto,
+  UpdateExperienceDto,
   UpdateProfileDto,
+  UpdateProjectDto,
+  UpdateSkillDto,
 } from './dto';
 import { PortfolioService } from './portfolio.service';
 
@@ -28,7 +33,7 @@ import { PortfolioService } from './portfolio.service';
 export class PortfolioController {
   constructor(private readonly portfolioService: PortfolioService) {}
 
-  // ─── Public (조회) ──────────────────────────────────────────────────────────
+  // ─── Public ─────────────────────────────────────────────────────────────────
 
   @Public()
   @Get('profile')
@@ -44,8 +49,8 @@ export class PortfolioController {
 
   @Public()
   @Get('projects')
-  getProjects(@Query() query: LocaleQueryDto) {
-    return this.portfolioService.getProjects(query.locale ?? 'ko');
+  getProjects(@Query() query: GetProjectsQueryDto) {
+    return this.portfolioService.getProjects(query.locale ?? 'ko', query.featured);
   }
 
   @Public()
@@ -60,7 +65,7 @@ export class PortfolioController {
     return this.portfolioService.getEducation(query.locale ?? 'ko');
   }
 
-  // ─── Admin (관리) ───────────────────────────────────────────────────────────
+  // ─── Admin ──────────────────────────────────────────────────────────────────
 
   @ApiBearerAuth()
   @Put('profile')
@@ -77,7 +82,7 @@ export class PortfolioController {
 
   @ApiBearerAuth()
   @Put('experiences/:id')
-  updateExperience(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateExperienceDto) {
+  updateExperience(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateExperienceDto) {
     return this.portfolioService.updateExperience(id, dto);
   }
 
@@ -97,7 +102,7 @@ export class PortfolioController {
 
   @ApiBearerAuth()
   @Put('projects/:id')
-  updateProject(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateProjectDto) {
+  updateProject(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProjectDto) {
     return this.portfolioService.updateProject(id, dto);
   }
 
@@ -117,7 +122,7 @@ export class PortfolioController {
 
   @ApiBearerAuth()
   @Put('skills/:id')
-  updateSkill(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateSkillDto) {
+  updateSkill(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSkillDto) {
     return this.portfolioService.updateSkill(id, dto);
   }
 
@@ -137,7 +142,7 @@ export class PortfolioController {
 
   @ApiBearerAuth()
   @Put('education/:id')
-  updateEducation(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateEducationDto) {
+  updateEducation(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateEducationDto) {
     return this.portfolioService.updateEducation(id, dto);
   }
 
