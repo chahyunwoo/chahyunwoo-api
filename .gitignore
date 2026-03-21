@@ -9,7 +9,7 @@ dist/
 .npm
 
 # Prisma
-prisma/migrations/
+# migrations는 Git에 포함 (prisma migrate deploy에 필요)
 
 # Testing
 coverage/
