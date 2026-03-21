@@ -1,5 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+
+interface CacheStore {
+  get<T>(key: string): Promise<T | undefined>;
+  set<T>(key: string, value: T, ttl?: number): Promise<void>;
+  del(key: string): Promise<void>;
+  clear(): Promise<void>;
+}
+
 import { PrismaService } from '../prisma/prisma.service';
 import { RevalidationService } from '../revalidation/revalidation.service';
 import type {
@@ -14,14 +23,26 @@ import type {
   UpdateSkillDto,
 } from './dto';
 
+const CACHE_PREFIX = 'portfolio';
+const CACHE_TTL = 300_000; // 5 minutes
+
 @Injectable()
 export class PortfolioService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly revalidation: RevalidationService,
+    @Inject(CACHE_MANAGER) private readonly cache: CacheStore,
   ) {}
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  private cacheKey(key: string): string {
+    return `${CACHE_PREFIX}:${key}`;
+  }
+
+  private async invalidateCache(): Promise<void> {
+    await this.cache.clear();
+  }
 
   private handleNotFound(error: unknown, entity: string): never {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
@@ -33,6 +54,10 @@ export class PortfolioService {
   // ─── Profile ────────────────────────────────────────────────────────────────
 
   async getProfile(locale: string) {
+    const key = this.cacheKey(`profile:${locale}`);
+    const cached = await this.cache.get(key);
+    if (cached) return cached;
+
     const profile = await this.prisma.profile.findFirst({
       include: { translations: { where: { locale } } },
     });
@@ -40,7 +65,7 @@ export class PortfolioService {
     if (!profile) throw new NotFoundException('Profile not found');
 
     const t = profile.translations[0];
-    return {
+    const result = {
       name: profile.name,
       location: profile.location,
       imageUrl: profile.imageUrl,
@@ -48,6 +73,9 @@ export class PortfolioService {
       jobTitle: t?.jobTitle ?? '',
       introduction: t?.introduction ?? [],
     };
+
+    await this.cache.set(key, result, CACHE_TTL);
+    return result;
   }
 
   async updateProfile(dto: UpdateProfileDto) {
@@ -91,6 +119,7 @@ export class PortfolioService {
       );
     }
 
+    await this.invalidateCache();
     await this.revalidation.trigger('portfolio');
     return this.getProfile('ko');
   }
@@ -98,12 +127,16 @@ export class PortfolioService {
   // ─── Experiences ────────────────────────────────────────────────────────────
 
   async getExperiences(locale: string) {
+    const key = this.cacheKey(`experiences:${locale}`);
+    const cached = await this.cache.get(key);
+    if (cached) return cached;
+
     const experiences = await this.prisma.experience.findMany({
       include: { translations: { where: { locale } } },
       orderBy: { sortOrder: 'asc' },
     });
 
-    return experiences.map(exp => {
+    const result = experiences.map(exp => {
       const t = exp.translations[0];
       return {
         id: exp.id,
@@ -115,6 +148,9 @@ export class PortfolioService {
         responsibilities: t?.responsibilities ?? [],
       };
     });
+
+    await this.cache.set(key, result, CACHE_TTL);
+    return result;
   }
 
   async createExperience(dto: CreateExperienceDto) {
@@ -135,6 +171,7 @@ export class PortfolioService {
       },
       include: { translations: true },
     });
+    await this.invalidateCache();
     await this.revalidation.trigger('portfolio');
     return result;
   }
@@ -162,6 +199,7 @@ export class PortfolioService {
         },
         include: { translations: true },
       });
+      await this.invalidateCache();
       await this.revalidation.trigger('portfolio');
       return result;
     } catch (error) {
@@ -172,6 +210,7 @@ export class PortfolioService {
   async deleteExperience(id: number): Promise<void> {
     try {
       await this.prisma.experience.delete({ where: { id } });
+      await this.invalidateCache();
       await this.revalidation.trigger('portfolio');
     } catch (error) {
       this.handleNotFound(error, 'Experience');
@@ -181,13 +220,17 @@ export class PortfolioService {
   // ─── Projects ───────────────────────────────────────────────────────────────
 
   async getProjects(locale: string, featured?: boolean) {
+    const key = this.cacheKey(`projects:${locale}:${featured ?? 'all'}`);
+    const cached = await this.cache.get(key);
+    if (cached) return cached;
+
     const projects = await this.prisma.project.findMany({
       where: featured !== undefined ? { featured } : undefined,
       include: { translations: { where: { locale } } },
       orderBy: { sortOrder: 'asc' },
     });
 
-    return projects.map(proj => {
+    const result = projects.map(proj => {
       const t = proj.translations[0];
       return {
         id: proj.id,
@@ -199,6 +242,9 @@ export class PortfolioService {
         description: t?.description ?? '',
       };
     });
+
+    await this.cache.set(key, result, CACHE_TTL);
+    return result;
   }
 
   async createProject(dto: CreateProjectDto) {
@@ -219,6 +265,7 @@ export class PortfolioService {
       },
       include: { translations: true },
     });
+    await this.invalidateCache();
     await this.revalidation.trigger('portfolio');
     return result;
   }
@@ -246,6 +293,7 @@ export class PortfolioService {
         },
         include: { translations: true },
       });
+      await this.invalidateCache();
       await this.revalidation.trigger('portfolio');
       return result;
     } catch (error) {
@@ -256,6 +304,7 @@ export class PortfolioService {
   async deleteProject(id: number): Promise<void> {
     try {
       await this.prisma.project.delete({ where: { id } });
+      await this.invalidateCache();
       await this.revalidation.trigger('portfolio');
     } catch (error) {
       this.handleNotFound(error, 'Project');
@@ -265,6 +314,10 @@ export class PortfolioService {
   // ─── Skills ─────────────────────────────────────────────────────────────────
 
   async getSkills() {
+    const key = this.cacheKey('skills');
+    const cached = await this.cache.get(key);
+    if (cached) return cached;
+
     const skills = await this.prisma.skill.findMany({ orderBy: { sortOrder: 'asc' } });
 
     const grouped: Record<string, string[]> = {};
@@ -273,13 +326,17 @@ export class PortfolioService {
       grouped[skill.category].push(skill.name);
     }
 
-    return Object.entries(grouped).map(([category, items]) => ({ category, items }));
+    const result = Object.entries(grouped).map(([category, items]) => ({ category, items }));
+
+    await this.cache.set(key, result, CACHE_TTL);
+    return result;
   }
 
   async createSkill(dto: CreateSkillDto) {
     const result = await this.prisma.skill.create({
       data: { category: dto.category, name: dto.name, sortOrder: dto.sortOrder ?? 0 },
     });
+    await this.invalidateCache();
     await this.revalidation.trigger('portfolio');
     return result;
   }
@@ -294,6 +351,7 @@ export class PortfolioService {
           ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
         },
       });
+      await this.invalidateCache();
       await this.revalidation.trigger('portfolio');
       return result;
     } catch (error) {
@@ -304,6 +362,7 @@ export class PortfolioService {
   async deleteSkill(id: number): Promise<void> {
     try {
       await this.prisma.skill.delete({ where: { id } });
+      await this.invalidateCache();
       await this.revalidation.trigger('portfolio');
     } catch (error) {
       this.handleNotFound(error, 'Skill');
@@ -313,12 +372,16 @@ export class PortfolioService {
   // ─── Education ──────────────────────────────────────────────────────────────
 
   async getEducation(locale: string) {
+    const key = this.cacheKey(`education:${locale}`);
+    const cached = await this.cache.get(key);
+    if (cached) return cached;
+
     const records = await this.prisma.education.findMany({
       include: { translations: { where: { locale } } },
       orderBy: { sortOrder: 'asc' },
     });
 
-    return records.map(edu => {
+    const result = records.map(edu => {
       const t = edu.translations[0];
       return {
         id: edu.id,
@@ -327,6 +390,9 @@ export class PortfolioService {
         degree: t?.degree ?? '',
       };
     });
+
+    await this.cache.set(key, result, CACHE_TTL);
+    return result;
   }
 
   async createEducation(dto: CreateEducationDto) {
@@ -344,6 +410,7 @@ export class PortfolioService {
       },
       include: { translations: true },
     });
+    await this.invalidateCache();
     await this.revalidation.trigger('portfolio');
     return result;
   }
@@ -368,6 +435,7 @@ export class PortfolioService {
         },
         include: { translations: true },
       });
+      await this.invalidateCache();
       await this.revalidation.trigger('portfolio');
       return result;
     } catch (error) {
@@ -378,6 +446,7 @@ export class PortfolioService {
   async deleteEducation(id: number): Promise<void> {
     try {
       await this.prisma.education.delete({ where: { id } });
+      await this.invalidateCache();
       await this.revalidation.trigger('portfolio');
     } catch (error) {
       this.handleNotFound(error, 'Education');
