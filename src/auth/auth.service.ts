@@ -78,6 +78,45 @@ export class AuthService {
     return result.count;
   }
 
+  // ─── Preview Token ────────────────────────────────────────────────────────
+
+  private readonly previewTokens = new Map<string, number>();
+  private static readonly PREVIEW_TOKEN_TTL = 5 * 60 * 1000; // 5 minutes
+
+  private static readonly MAX_PREVIEW_TOKENS = 10;
+
+  createPreviewToken(): { token: string; expiresIn: number } {
+    this.cleanupPreviewTokens();
+
+    if (this.previewTokens.size >= AuthService.MAX_PREVIEW_TOKENS) {
+      const oldest = this.previewTokens.keys().next().value;
+      if (oldest) this.previewTokens.delete(oldest);
+    }
+
+    const token = randomBytes(32).toString('hex');
+    this.previewTokens.set(token, Date.now() + AuthService.PREVIEW_TOKEN_TTL);
+
+    return { token, expiresIn: 300 };
+  }
+
+  verifyPreviewToken(token: string): boolean {
+    const expiresAt = this.previewTokens.get(token);
+    if (!expiresAt || expiresAt < Date.now()) {
+      this.previewTokens.delete(token);
+      return false;
+    }
+    // 일회용: 검증 성공 시 즉시 삭제
+    this.previewTokens.delete(token);
+    return true;
+  }
+
+  private cleanupPreviewTokens(): void {
+    const now = Date.now();
+    for (const [token, expiresAt] of this.previewTokens) {
+      if (expiresAt < now) this.previewTokens.delete(token);
+    }
+  }
+
   // ─── Private ──────────────────────────────────────────────────────────────
 
   private generateAccessToken(username: string): string {
