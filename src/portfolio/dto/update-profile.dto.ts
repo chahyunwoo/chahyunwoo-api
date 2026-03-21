@@ -54,6 +54,16 @@ export class UpdateProfileDto {
   @IsString()
   location?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUrl({}, { message: 'imageUrl must be a valid URL' })
+  imageUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUrl({}, { message: 'iconUrl must be a valid URL' })
+  iconUrl?: string;
+
   @ApiPropertyOptional({ type: [SocialLinkDto] })
   @IsOptional()
   @IsArray()
