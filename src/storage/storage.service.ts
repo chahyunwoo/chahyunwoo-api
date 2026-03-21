@@ -1,8 +1,8 @@
+import { randomUUID } from 'node:crypto';
+import { extname } from 'node:path';
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomUUID } from 'crypto';
-import { extname } from 'path';
 
 @Injectable()
 export class StorageService {
@@ -10,7 +10,7 @@ export class StorageService {
   private readonly bucket: string;
   private readonly publicUrl: string;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(config: ConfigService) {
     const accountId = config.getOrThrow<string>('R2_ACCOUNT_ID');
 
     this.client = new S3Client({

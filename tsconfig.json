@@ -12,11 +12,16 @@
     "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
-    "strictNullChecks": true,
+    "strict": true,
     "noImplicitAny": true,
+    "strictNullChecks": true,
     "strictBindCallApply": true,
-    "forceConsistentCasingInFileNames": true,
+    "strictFunctionTypes": true,
+    "strictPropertyInitialization": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
     "paths": {
       "@/*": ["src/*"]
     }

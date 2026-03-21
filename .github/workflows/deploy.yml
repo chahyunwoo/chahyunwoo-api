@@ -1,4 +1,4 @@
-name: Deploy to Production
+name: Deploy
 
 on:
   push:
@@ -7,7 +7,6 @@ on:
 
 jobs:
   deploy:
-    name: Deploy to Mac mini
     runs-on: ubuntu-latest
 
     steps:
@@ -18,7 +17,7 @@ jobs:
           oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
           tags: tag:ci
 
-      - name: Deploy
+      - name: Deploy to Mac mini
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.MACMINI_HOST }}
@@ -31,16 +30,8 @@ jobs:
 
             git pull origin main
 
-            docker compose -p api-prod \
-              -f docker-compose.yml \
-              -f docker-compose.prod.yml \
-              build api
-
-            docker compose -p api-prod \
-              -f docker-compose.yml \
-              -f docker-compose.prod.yml \
-              up -d
-
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml build api
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
             docker image prune -f
 
             sleep 10

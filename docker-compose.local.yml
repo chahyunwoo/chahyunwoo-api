@@ -6,6 +6,7 @@ services:
       - "8000:8000"
     environment:
       NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-hyunwoo}
 
   db:
     environment:

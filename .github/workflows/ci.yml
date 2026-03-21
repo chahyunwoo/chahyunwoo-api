@@ -47,7 +47,10 @@ jobs:
           DATABASE_URL: postgresql://test:test@localhost:5432/hyunwoo_test
 
       - name: Lint
-        run: pnpm lint
+        run: pnpm lint:ci
+
+      - name: Type Check
+        run: pnpm typecheck
 
       - name: Build
         run: pnpm build

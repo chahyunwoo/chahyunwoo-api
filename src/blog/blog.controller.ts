@@ -1,3 +1,4 @@
+import type { MultipartFile } from '@fastify/multipart';
 import {
   BadRequestException,
   Body,
@@ -13,7 +14,11 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
-import { FastifyRequest } from 'fastify';
+import type { FastifyRequest } from 'fastify';
+
+interface MultipartRequest extends FastifyRequest {
+  file(): Promise<MultipartFile | undefined>;
+}
 
 import { Public } from '../common/decorators/public.decorator';
 import { BlogService } from './blog.service';
@@ -76,7 +81,7 @@ export class BlogController {
   @ApiBearerAuth()
   @Post('posts/:slug/thumbnail')
   @ApiConsumes('multipart/form-data')
-  async uploadThumbnail(@Param('slug') slug: string, @Req() request: FastifyRequest) {
+  async uploadThumbnail(@Param('slug') slug: string, @Req() request: MultipartRequest) {
     const data = await request.file();
     if (!data) throw new BadRequestException('No file provided');
     if (!ALLOWED_MIME_TYPES.has(data.mimetype)) {
