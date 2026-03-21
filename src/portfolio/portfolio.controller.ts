@@ -26,6 +26,7 @@ import {
   UpdateProjectDto,
   UpdateSkillDto,
 } from './dto';
+import { SUPPORTED_LOCALES } from './portfolio.constants';
 import { PortfolioService } from './portfolio.service';
 
 @ApiTags('portfolio')
@@ -34,6 +35,12 @@ export class PortfolioController {
   constructor(private readonly portfolioService: PortfolioService) {}
 
   // ─── Public ─────────────────────────────────────────────────────────────────
+
+  @Public()
+  @Get('locales')
+  getLocales() {
+    return SUPPORTED_LOCALES;
+  }
 
   @Public()
   @Get('profile')

@@ -1,12 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString } from 'class-validator';
-
-const SUPPORTED_LOCALES = ['ko', 'en', 'jp'] as const;
+import { LOCALE_CODES } from '../portfolio.constants';
 
 export class LocaleQueryDto {
-  @ApiPropertyOptional({ default: 'ko', enum: SUPPORTED_LOCALES })
+  @ApiPropertyOptional({ default: 'ko', enum: LOCALE_CODES })
   @IsOptional()
   @IsString()
-  @IsIn(SUPPORTED_LOCALES)
+  @IsIn(LOCALE_CODES)
   locale?: string = 'ko';
 }
