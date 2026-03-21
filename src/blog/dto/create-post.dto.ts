@@ -1,14 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsArray,
-  IsBoolean,
-  IsOptional,
-  IsString,
-  IsUrl,
-  Matches,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
+import { IsArray, IsBoolean, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class CreatePostDto {
   @ApiProperty({ example: 'Next.js 15 App Router 완전 정복' })
@@ -17,29 +8,17 @@ export class CreatePostDto {
   @MaxLength(500)
   title: string;
 
-  @ApiProperty({ example: 'nextjs-15-app-router', description: 'URL-safe slug' })
-  @IsString()
-  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
-    message: 'slug must be lowercase letters, numbers, and hyphens',
-  })
-  @MaxLength(500)
-  slug: string;
-
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: '미입력 시 제목에서 자동 생성' })
   @IsOptional()
   @IsString()
-  @MaxLength(500)
+  @MaxLength(200)
   description?: string;
 
   @ApiProperty({ description: 'MDX content' })
   @IsString()
   @MinLength(1)
+  @MaxLength(500_000)
   content: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsUrl({}, { message: 'thumbnailUrl must be a valid URL' })
-  thumbnailUrl?: string;
 
   @ApiPropertyOptional({ example: 'Frontend' })
   @IsOptional()
