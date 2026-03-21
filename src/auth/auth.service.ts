@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
@@ -10,6 +10,8 @@ const REFRESH_TOKEN_EXPIRES_DAYS = 7;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly config: ConfigService,
     private readonly jwtService: JwtService,
@@ -46,10 +48,11 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token expired');
     }
 
-    // IP 변경 감지 → 전체 세션 폐기
+    // IP 변경 감지 → 로그 남기고 새 IP로 갱신
     if (stored.ipAddress && stored.ipAddress !== ipAddress) {
-      await this.prisma.refreshToken.deleteMany({ where: { username: stored.username } });
-      throw new ForbiddenException('Token used from different IP. All sessions revoked.');
+      this.logger.warn(
+        `IP change detected for ${stored.username}: ${stored.ipAddress} → ${ipAddress}`,
+      );
     }
 
     // Token Rotation: 기존 폐기 + 새 발급

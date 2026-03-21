@@ -1,4 +1,14 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { Public } from '../common/decorators/public.decorator';
@@ -10,6 +20,8 @@ import { PageViewService } from './page-view.service';
 @ApiTags('analytics')
 @Controller('api/analytics')
 export class AnalyticsController {
+  private readonly logger = new Logger(AnalyticsController.name);
+
   constructor(
     private readonly analytics: AnalyticsService,
     private readonly pageView: PageViewService,
@@ -22,13 +34,15 @@ export class AnalyticsController {
   @Post('pageview')
   @HttpCode(HttpStatus.NO_CONTENT)
   trackPageView(@Body() dto: TrackPageViewDto, @Req() req: FastifyRequest) {
-    this.pageView.track({
-      path: dto.path,
-      appName: dto.appName,
-      referrer: dto.referrer,
-      userAgent: req.headers['user-agent'],
-      ipAddress: req.ip,
-    });
+    this.pageView
+      .track({
+        path: dto.path,
+        appName: dto.appName,
+        referrer: dto.referrer,
+        userAgent: req.headers['user-agent'],
+        ipAddress: req.ip,
+      })
+      .catch(err => this.logger.error('pageview track failed', err));
   }
 
   // ─── Admin (JWT 필요) ──────────────────────────────────────────────────────

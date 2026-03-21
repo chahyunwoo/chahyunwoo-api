@@ -1,5 +1,14 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+
+const MAX_DAYS = 365;
+const MAX_LIMIT = 100;
+
+function clamp(value: number | undefined, defaultVal: number, max: number): number {
+  const v = value ?? defaultVal;
+  return Math.min(Math.max(1, v), max);
+}
 
 @Injectable()
 export class AnalyticsService {
@@ -20,15 +29,12 @@ export class AnalyticsService {
     return { postStats, categoryStats, recentPosts, recentlyUpdated };
   }
 
-  // ─── Post Stats ───────────────────────────────────────────────────────────
-
   private async getPostStats() {
-    const [total, published, draft] = await Promise.all([
+    const [total, published] = await Promise.all([
       this.prisma.post.count(),
       this.prisma.post.count({ where: { published: true } }),
-      this.prisma.post.count({ where: { published: false } }),
     ]);
-    return { total, published, draft };
+    return { total, published, draft: total - published };
   }
 
   private async getCategoryDistribution() {
@@ -61,56 +67,55 @@ export class AnalyticsService {
 
   // ─── Popular Posts ────────────────────────────────────────────────────────
 
-  async getPopularPosts(limit = 10) {
+  async getPopularPosts(limit?: number) {
     return this.prisma.post.findMany({
       where: { published: true },
       select: { slug: true, title: true, category: true, viewCount: true, createdAt: true },
       orderBy: { viewCount: 'desc' },
-      take: limit,
+      take: clamp(limit, 10, MAX_LIMIT),
     });
   }
 
   // ─── Visitor Stats ────────────────────────────────────────────────────────
 
-  async getVisitorStats(days = 30, appName?: string) {
+  async getVisitorStats(days?: number, appName?: string) {
+    const d = clamp(days, 30, MAX_DAYS);
     const since = new Date();
-    since.setDate(since.getDate() - days);
+    since.setDate(since.getDate() - d);
 
-    const where = {
-      createdAt: { gte: since },
-      ...(appName && { appName }),
-    };
+    const appFilter = appName ? Prisma.sql`AND app_name = ${appName}` : Prisma.empty;
 
-    const [totalViews, uniqueIps, dailyViews] = await Promise.all([
-      this.prisma.pageView.count({ where }),
-      this.prisma.pageView.groupBy({ by: ['ipAddress'], where }).then(r => r.length),
-      this.prisma.pageView.groupBy({
-        by: ['createdAt'],
-        where,
-        _count: true,
-        orderBy: { createdAt: 'asc' },
+    const [totalViews, uniqueResult, dailyResult] = await Promise.all([
+      this.prisma.pageView.count({
+        where: { createdAt: { gte: since }, ...(appName && { appName }) },
       }),
+      this.prisma.$queryRaw<[{ count: bigint }]>`
+        SELECT COUNT(DISTINCT ip_address) as count
+        FROM analytics.page_views
+        WHERE created_at >= ${since} ${appFilter}
+      `,
+      this.prisma.$queryRaw<{ date: string; count: bigint }[]>`
+        SELECT DATE(created_at) as date, COUNT(*) as count
+        FROM analytics.page_views
+        WHERE created_at >= ${since} ${appFilter}
+        GROUP BY DATE(created_at)
+        ORDER BY date ASC
+      `,
     ]);
-
-    // 일별 집계
-    const dailyMap = new Map<string, number>();
-    for (const row of dailyViews) {
-      const date = row.createdAt.toISOString().split('T')[0];
-      dailyMap.set(date, (dailyMap.get(date) ?? 0) + row._count);
-    }
 
     return {
       totalViews,
-      uniqueVisitors: uniqueIps,
-      daily: Array.from(dailyMap.entries()).map(([date, count]) => ({ date, count })),
+      uniqueVisitors: Number(uniqueResult[0]?.count ?? 0),
+      daily: dailyResult.map(r => ({ date: String(r.date), count: Number(r.count) })),
     };
   }
 
   // ─── Referrer Stats ───────────────────────────────────────────────────────
 
-  async getReferrerStats(days = 30, appName?: string) {
+  async getReferrerStats(days?: number, appName?: string) {
+    const d = clamp(days, 30, MAX_DAYS);
     const since = new Date();
-    since.setDate(since.getDate() - days);
+    since.setDate(since.getDate() - d);
 
     const views = await this.prisma.pageView.groupBy({
       by: ['referrer'],
@@ -129,9 +134,10 @@ export class AnalyticsService {
 
   // ─── Popular Pages ────────────────────────────────────────────────────────
 
-  async getPopularPages(days = 30, appName?: string, limit = 20) {
+  async getPopularPages(days?: number, appName?: string, limit?: number) {
+    const d = clamp(days, 30, MAX_DAYS);
     const since = new Date();
-    since.setDate(since.getDate() - days);
+    since.setDate(since.getDate() - d);
 
     const views = await this.prisma.pageView.groupBy({
       by: ['path'],
@@ -141,7 +147,7 @@ export class AnalyticsService {
       },
       _count: true,
       orderBy: { _count: { path: 'desc' } },
-      take: limit,
+      take: clamp(limit, 20, MAX_LIMIT),
     });
 
     return views.map(v => ({ path: v.path, count: v._count }));
@@ -168,7 +174,6 @@ export class AnalyticsService {
         heapTotal: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
         rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
       },
-      nodeVersion: process.version,
     };
   }
 
