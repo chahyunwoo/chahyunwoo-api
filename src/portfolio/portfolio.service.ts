@@ -1,17 +1,10 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-
-interface CacheStore {
-  get<T>(key: string): Promise<T | undefined>;
-  set<T>(key: string, value: T, ttl?: number): Promise<void>;
-  del(key: string): Promise<void>;
-  clear(): Promise<void>;
-}
-
 import { PrismaService } from '../prisma/prisma.service';
 import { RevalidationService } from '../revalidation/revalidation.service';
 import { StorageService } from '../storage/storage.service';
+import type { CacheStore } from '../types/cache-store';
 import type {
   CreateEducationDto,
   CreateExperienceDto,

@@ -4,9 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
-
-const ACCESS_TOKEN_EXPIRES = '15m';
-const REFRESH_TOKEN_EXPIRES_DAYS = 7;
+import { ACCESS_TOKEN_JWT_EXPIRES, REFRESH_TOKEN_EXPIRES_DAYS } from './auth.constants';
 
 @Injectable()
 export class AuthService {
@@ -83,7 +81,7 @@ export class AuthService {
   // ─── Private ──────────────────────────────────────────────────────────────
 
   private generateAccessToken(username: string): string {
-    return this.jwtService.sign({ sub: username }, { expiresIn: ACCESS_TOKEN_EXPIRES });
+    return this.jwtService.sign({ sub: username }, { expiresIn: ACCESS_TOKEN_JWT_EXPIRES });
   }
 
   private async createRefreshToken(username: string, ipAddress?: string): Promise<string> {

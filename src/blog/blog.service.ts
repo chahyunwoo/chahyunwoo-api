@@ -1,22 +1,16 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { Post, PostTag, Tag } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { AdminLogService } from '../analytics/admin-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RevalidationService } from '../revalidation/revalidation.service';
 import { StorageService } from '../storage/storage.service';
+import type { CacheStore } from '../types/cache-store';
 import { RECENT_DAYS, RELATED_POST_COUNT } from './blog.constants';
 import type { CreatePostDto } from './dto/create-post.dto';
 import type { PostQueryDto, SearchQueryDto, TagQueryDto } from './dto/post-query.dto';
 import type { UpdatePostDto } from './dto/update-post.dto';
-
-interface CacheStore {
-  get<T>(key: string): Promise<T | undefined>;
-  set<T>(key: string, value: T, ttl?: number): Promise<void>;
-  del(key: string): Promise<void>;
-  clear(): Promise<void>;
-}
 
 type PostWithTags = Post & {
   postTags: Array<PostTag & { tag: Tag }>;
@@ -34,6 +28,8 @@ export class BlogService {
     private readonly adminLog: AdminLogService,
     @Inject(CACHE_MANAGER) private readonly cache: CacheStore,
   ) {}
+
+  private readonly logger = new Logger(BlogService.name);
 
   // ─── Cache Helpers ────────────────────────────────────────────────────────
 
@@ -105,7 +101,7 @@ export class BlogService {
     if (!isAdmin) {
       this.prisma.post
         .update({ where: { slug }, data: { viewCount: { increment: 1 } } })
-        .catch(() => {});
+        .catch(err => this.logger.warn('viewCount increment failed', err));
     }
 
     const result = this.formatPost(post, true);

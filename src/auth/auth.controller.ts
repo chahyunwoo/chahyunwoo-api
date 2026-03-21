@@ -4,6 +4,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { Public } from '../common/decorators/public.decorator';
 import { SkipApiKey } from '../common/decorators/skip-api-key.decorator';
 import { ApiBadRequest, ApiUnauthorized } from '../common/swagger/error-responses';
+import type { CookieRequest } from '../types/fastify.d';
 import {
   ACCESS_TOKEN_COOKIE,
   ACCESS_TOKEN_MAX_AGE,
@@ -14,11 +15,6 @@ import {
 } from './auth.constants';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
-
-interface CookieRequest extends FastifyRequest {
-  cookies: Record<string, string>;
-  user: { username: string };
-}
 
 @ApiTags('auth')
 @Controller('api/auth')
