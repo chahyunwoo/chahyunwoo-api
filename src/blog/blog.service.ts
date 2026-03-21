@@ -6,7 +6,7 @@ import { AdminLogService } from '../analytics/admin-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RevalidationService } from '../revalidation/revalidation.service';
 import { StorageService } from '../storage/storage.service';
-import type { CacheStore } from '../types/cache-store';
+import { type CacheStore, NamespacedCache } from '../types/cache-store';
 import { RECENT_DAYS, RELATED_POST_COUNT } from './blog.constants';
 import type { CreatePostDto } from './dto/create-post.dto';
 import type { PostQueryDto, SearchQueryDto, TagQueryDto } from './dto/post-query.dto';
@@ -26,26 +26,19 @@ export class BlogService {
     private readonly storage: StorageService,
     private readonly revalidation: RevalidationService,
     private readonly adminLog: AdminLogService,
-    @Inject(CACHE_MANAGER) private readonly cache: CacheStore,
-  ) {}
+    @Inject(CACHE_MANAGER) rawCache: CacheStore,
+  ) {
+    this.cache = new NamespacedCache(rawCache, CACHE_PREFIX);
+  }
 
   private readonly logger = new Logger(BlogService.name);
-
-  // ─── Cache Helpers ────────────────────────────────────────────────────────
-
-  private cacheKey(key: string): string {
-    return `${CACHE_PREFIX}:${key}`;
-  }
-
-  private async invalidateCache(): Promise<void> {
-    await this.cache.clear();
-  }
+  private readonly cache: NamespacedCache;
 
   // ─── Read ─────────────────────────────────────────────────────────────────
 
   async findAll(query: PostQueryDto) {
     const { page = 1, limit = 10, category, tag } = query;
-    const key = this.cacheKey(`posts:${page}:${limit}:${category ?? ''}:${tag ?? ''}`);
+    const key = `posts:${page}:${limit}:${category ?? ''}:${tag ?? ''}`;
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
@@ -82,7 +75,7 @@ export class BlogService {
   }
 
   async findBySlug(slug: string, isAdmin = false) {
-    const key = this.cacheKey(`post:${slug}`);
+    const key = `post:${slug}`;
     if (!isAdmin) {
       const cached = await this.cache.get(key);
       if (cached) return cached;
@@ -149,7 +142,7 @@ export class BlogService {
   }
 
   async getCategories() {
-    const key = this.cacheKey('categories');
+    const key = 'categories';
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
@@ -212,7 +205,7 @@ export class BlogService {
   }
 
   async getRecentPosts(limit = 5) {
-    const key = this.cacheKey(`recent:${limit}`);
+    const key = `recent:${limit}`;
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
@@ -230,7 +223,7 @@ export class BlogService {
 
   async getTags(query: TagQueryDto) {
     const { limit = 15 } = query;
-    const key = this.cacheKey(`tags:${limit}`);
+    const key = `tags:${limit}`;
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
@@ -253,7 +246,7 @@ export class BlogService {
   }
 
   async getRelatedPosts(slug: string) {
-    const key = this.cacheKey(`related:${slug}`);
+    const key = `related:${slug}`;
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
@@ -343,8 +336,10 @@ export class BlogService {
     })) as PostWithTags;
 
     const result = this.formatPost(post, true);
-    await this.invalidateCache();
-    this.revalidation.trigger('blog', post.slug);
+    await this.cache.invalidate();
+    this.revalidation
+      .trigger('blog', post.slug)
+      .catch(err => this.logger.warn('revalidation failed', err));
     this.adminLog.log({
       action: 'create',
       entity: 'post',
@@ -377,8 +372,10 @@ export class BlogService {
       })) as PostWithTags;
 
       const result = this.formatPost(post, true);
-      await this.invalidateCache();
-      this.revalidation.trigger('blog', post.slug);
+      await this.cache.invalidate();
+      this.revalidation
+        .trigger('blog', post.slug)
+        .catch(err => this.logger.warn('revalidation failed', err));
       this.adminLog.log({
         action: 'update',
         entity: 'post',
@@ -398,9 +395,13 @@ export class BlogService {
   async remove(slug: string): Promise<void> {
     try {
       await this.prisma.post.delete({ where: { slug } });
-      await this.invalidateCache();
-      this.revalidation.trigger('blog', slug);
-      this.adminLog.log({ action: 'delete', entity: 'post', entityId: slug, username: 'admin' });
+      await this.cache.invalidate();
+      this.revalidation
+        .trigger('blog', slug)
+        .catch(err => this.logger.warn('revalidation failed', err));
+      this.adminLog
+        .log({ action: 'delete', entity: 'post', entityId: slug, username: 'admin' })
+        .catch(err => this.logger.warn('admin log failed', err));
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         throw new NotFoundException('Post not found');
@@ -425,7 +426,7 @@ export class BlogService {
       include: { postTags: { include: { tag: true } } },
     })) as PostWithTags;
 
-    await this.invalidateCache();
+    await this.cache.invalidate();
     return this.formatPost(post, true);
   }
 

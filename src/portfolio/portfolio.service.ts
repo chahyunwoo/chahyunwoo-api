@@ -1,10 +1,10 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RevalidationService } from '../revalidation/revalidation.service';
 import { StorageService } from '../storage/storage.service';
-import type { CacheStore } from '../types/cache-store';
+import { type CacheStore, NamespacedCache } from '../types/cache-store';
 import type {
   CreateEducationDto,
   CreateExperienceDto,
@@ -27,18 +27,13 @@ export class PortfolioService {
     private readonly prisma: PrismaService,
     private readonly revalidation: RevalidationService,
     private readonly storage: StorageService,
-    @Inject(CACHE_MANAGER) private readonly cache: CacheStore,
-  ) {}
-
-  // ─── Helpers ──────────────────────────────────────────────────────────────
-
-  private cacheKey(key: string): string {
-    return `${CACHE_PREFIX}:${key}`;
+    @Inject(CACHE_MANAGER) rawCache: CacheStore,
+  ) {
+    this.cache = new NamespacedCache(rawCache, CACHE_PREFIX);
   }
 
-  private async invalidateCache(): Promise<void> {
-    await this.cache.clear();
-  }
+  private readonly logger = new Logger(PortfolioService.name);
+  private readonly cache: NamespacedCache;
 
   // ─── Locales ────────────────────────────────────────────────────────────────
 
@@ -77,7 +72,7 @@ export class PortfolioService {
   // ─── Profile ────────────────────────────────────────────────────────────────
 
   async getProfile(locale: string) {
-    const key = this.cacheKey(`profile:${locale}`);
+    const key = `profile:${locale}`;
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
@@ -154,15 +149,17 @@ export class PortfolioService {
       );
     }
 
-    await this.invalidateCache();
-    this.revalidation.trigger('portfolio');
+    await this.cache.invalidate();
+    this.revalidation
+      .trigger('portfolio')
+      .catch(err => this.logger.warn('revalidation failed', err));
     return this.getProfile('ko');
   }
 
   // ─── Experiences ────────────────────────────────────────────────────────────
 
   async getExperiences(locale: string) {
-    const key = this.cacheKey(`experiences:${locale}`);
+    const key = `experiences:${locale}`;
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
@@ -206,8 +203,10 @@ export class PortfolioService {
       },
       include: { translations: true },
     });
-    await this.invalidateCache();
-    this.revalidation.trigger('portfolio');
+    await this.cache.invalidate();
+    this.revalidation
+      .trigger('portfolio')
+      .catch(err => this.logger.warn('revalidation failed', err));
     return result;
   }
 
@@ -234,8 +233,10 @@ export class PortfolioService {
         },
         include: { translations: true },
       });
-      await this.invalidateCache();
-      this.revalidation.trigger('portfolio');
+      await this.cache.invalidate();
+      this.revalidation
+        .trigger('portfolio')
+        .catch(err => this.logger.warn('revalidation failed', err));
       return result;
     } catch (error) {
       this.handleNotFound(error, 'Experience');
@@ -245,8 +246,10 @@ export class PortfolioService {
   async deleteExperience(id: number): Promise<void> {
     try {
       await this.prisma.experience.delete({ where: { id } });
-      await this.invalidateCache();
-      this.revalidation.trigger('portfolio');
+      await this.cache.invalidate();
+      this.revalidation
+        .trigger('portfolio')
+        .catch(err => this.logger.warn('revalidation failed', err));
     } catch (error) {
       this.handleNotFound(error, 'Experience');
     }
@@ -255,7 +258,7 @@ export class PortfolioService {
   // ─── Projects ───────────────────────────────────────────────────────────────
 
   async getProjects(locale: string, featured?: boolean) {
-    const key = this.cacheKey(`projects:${locale}:${featured ?? 'all'}`);
+    const key = `projects:${locale}:${featured ?? 'all'}`;
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
@@ -300,8 +303,10 @@ export class PortfolioService {
       },
       include: { translations: true },
     });
-    await this.invalidateCache();
-    this.revalidation.trigger('portfolio');
+    await this.cache.invalidate();
+    this.revalidation
+      .trigger('portfolio')
+      .catch(err => this.logger.warn('revalidation failed', err));
     return result;
   }
 
@@ -328,8 +333,10 @@ export class PortfolioService {
         },
         include: { translations: true },
       });
-      await this.invalidateCache();
-      this.revalidation.trigger('portfolio');
+      await this.cache.invalidate();
+      this.revalidation
+        .trigger('portfolio')
+        .catch(err => this.logger.warn('revalidation failed', err));
       return result;
     } catch (error) {
       this.handleNotFound(error, 'Project');
@@ -339,8 +346,10 @@ export class PortfolioService {
   async deleteProject(id: number): Promise<void> {
     try {
       await this.prisma.project.delete({ where: { id } });
-      await this.invalidateCache();
-      this.revalidation.trigger('portfolio');
+      await this.cache.invalidate();
+      this.revalidation
+        .trigger('portfolio')
+        .catch(err => this.logger.warn('revalidation failed', err));
     } catch (error) {
       this.handleNotFound(error, 'Project');
     }
@@ -349,7 +358,7 @@ export class PortfolioService {
   // ─── Skills ─────────────────────────────────────────────────────────────────
 
   async getSkills() {
-    const key = this.cacheKey('skills');
+    const key = 'skills';
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
@@ -371,8 +380,10 @@ export class PortfolioService {
     const result = await this.prisma.skill.create({
       data: { category: dto.category, name: dto.name, sortOrder: dto.sortOrder ?? 0 },
     });
-    await this.invalidateCache();
-    this.revalidation.trigger('portfolio');
+    await this.cache.invalidate();
+    this.revalidation
+      .trigger('portfolio')
+      .catch(err => this.logger.warn('revalidation failed', err));
     return result;
   }
 
@@ -386,8 +397,10 @@ export class PortfolioService {
           ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
         },
       });
-      await this.invalidateCache();
-      this.revalidation.trigger('portfolio');
+      await this.cache.invalidate();
+      this.revalidation
+        .trigger('portfolio')
+        .catch(err => this.logger.warn('revalidation failed', err));
       return result;
     } catch (error) {
       this.handleNotFound(error, 'Skill');
@@ -397,8 +410,10 @@ export class PortfolioService {
   async deleteSkill(id: number): Promise<void> {
     try {
       await this.prisma.skill.delete({ where: { id } });
-      await this.invalidateCache();
-      this.revalidation.trigger('portfolio');
+      await this.cache.invalidate();
+      this.revalidation
+        .trigger('portfolio')
+        .catch(err => this.logger.warn('revalidation failed', err));
     } catch (error) {
       this.handleNotFound(error, 'Skill');
     }
@@ -407,7 +422,7 @@ export class PortfolioService {
   // ─── Education ──────────────────────────────────────────────────────────────
 
   async getEducation(locale: string) {
-    const key = this.cacheKey(`education:${locale}`);
+    const key = `education:${locale}`;
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
@@ -445,8 +460,10 @@ export class PortfolioService {
       },
       include: { translations: true },
     });
-    await this.invalidateCache();
-    this.revalidation.trigger('portfolio');
+    await this.cache.invalidate();
+    this.revalidation
+      .trigger('portfolio')
+      .catch(err => this.logger.warn('revalidation failed', err));
     return result;
   }
 
@@ -470,8 +487,10 @@ export class PortfolioService {
         },
         include: { translations: true },
       });
-      await this.invalidateCache();
-      this.revalidation.trigger('portfolio');
+      await this.cache.invalidate();
+      this.revalidation
+        .trigger('portfolio')
+        .catch(err => this.logger.warn('revalidation failed', err));
       return result;
     } catch (error) {
       this.handleNotFound(error, 'Education');
@@ -481,8 +500,10 @@ export class PortfolioService {
   async deleteEducation(id: number): Promise<void> {
     try {
       await this.prisma.education.delete({ where: { id } });
-      await this.invalidateCache();
-      this.revalidation.trigger('portfolio');
+      await this.cache.invalidate();
+      this.revalidation
+        .trigger('portfolio')
+        .catch(err => this.logger.warn('revalidation failed', err));
     } catch (error) {
       this.handleNotFound(error, 'Education');
     }

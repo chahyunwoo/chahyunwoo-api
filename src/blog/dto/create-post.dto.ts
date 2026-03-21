@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsOptional,
   IsString,
+  IsUrl,
   Matches,
   MaxLength,
   MinLength,
@@ -37,7 +38,7 @@ export class CreatePostDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsUrl({}, { message: 'thumbnailUrl must be a valid URL' })
   thumbnailUrl?: string;
 
   @ApiPropertyOptional({ example: 'Frontend' })

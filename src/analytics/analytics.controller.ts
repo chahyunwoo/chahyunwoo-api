@@ -72,20 +72,6 @@ export class AnalyticsController {
   }
 
   @ApiBearerAuth()
-  @Get('popular-pages')
-  getPopularPages(
-    @Query('days') days?: string,
-    @Query('app') app?: string,
-    @Query('limit') limit?: string,
-  ) {
-    return this.analytics.getPopularPages(
-      days ? Number(days) : undefined,
-      app,
-      limit ? Number(limit) : undefined,
-    );
-  }
-
-  @ApiBearerAuth()
   @Get('system')
   getSystem() {
     return this.analytics.getSystemStatus();
