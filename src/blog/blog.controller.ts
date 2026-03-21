@@ -1,4 +1,3 @@
-import type { MultipartFile } from '@fastify/multipart';
 import {
   BadRequestException,
   Body,
@@ -14,19 +13,13 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
-import type { FastifyRequest } from 'fastify';
-
-interface MultipartRequest extends FastifyRequest {
-  file(): Promise<MultipartFile | undefined>;
-}
-
 import { Public } from '../common/decorators/public.decorator';
+import type { MultipartRequest } from '../types/fastify.d';
+import { ALLOWED_MIME_TYPES } from './blog.constants';
 import { BlogService } from './blog.service';
 import { CreatePostDto } from './dto/create-post.dto';
-import { PostQueryDto, SearchQueryDto } from './dto/post-query.dto';
+import { PostQueryDto, RecentQueryDto, SearchQueryDto, TagQueryDto } from './dto/post-query.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-
-const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 @ApiTags('blog')
 @Controller('api/blog')
@@ -47,15 +40,33 @@ export class BlogController {
   }
 
   @Public()
+  @Get('posts/recent')
+  getRecentPosts(@Query() query: RecentQueryDto) {
+    return this.blogService.getRecentPosts(query.limit);
+  }
+
+  @Public()
   @Get('categories')
   getCategories() {
     return this.blogService.getCategories();
   }
 
   @Public()
+  @Get('tags')
+  getTags(@Query() query: TagQueryDto) {
+    return this.blogService.getTags(query);
+  }
+
+  @Public()
   @Get('posts/:slug')
   findOne(@Param('slug') slug: string) {
     return this.blogService.findBySlug(slug);
+  }
+
+  @Public()
+  @Get('posts/:slug/related')
+  getRelatedPosts(@Param('slug') slug: string) {
+    return this.blogService.getRelatedPosts(slug);
   }
 
   @ApiBearerAuth()
