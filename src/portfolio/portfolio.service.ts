@@ -162,7 +162,7 @@ export class PortfolioService {
     }
 
     await this.invalidateCache();
-    await this.revalidation.trigger('portfolio');
+    this.revalidation.trigger('portfolio');
     return this.getProfile('ko');
   }
 
@@ -214,7 +214,7 @@ export class PortfolioService {
       include: { translations: true },
     });
     await this.invalidateCache();
-    await this.revalidation.trigger('portfolio');
+    this.revalidation.trigger('portfolio');
     return result;
   }
 
@@ -242,7 +242,7 @@ export class PortfolioService {
         include: { translations: true },
       });
       await this.invalidateCache();
-      await this.revalidation.trigger('portfolio');
+      this.revalidation.trigger('portfolio');
       return result;
     } catch (error) {
       this.handleNotFound(error, 'Experience');
@@ -253,7 +253,7 @@ export class PortfolioService {
     try {
       await this.prisma.experience.delete({ where: { id } });
       await this.invalidateCache();
-      await this.revalidation.trigger('portfolio');
+      this.revalidation.trigger('portfolio');
     } catch (error) {
       this.handleNotFound(error, 'Experience');
     }
@@ -308,7 +308,7 @@ export class PortfolioService {
       include: { translations: true },
     });
     await this.invalidateCache();
-    await this.revalidation.trigger('portfolio');
+    this.revalidation.trigger('portfolio');
     return result;
   }
 
@@ -336,7 +336,7 @@ export class PortfolioService {
         include: { translations: true },
       });
       await this.invalidateCache();
-      await this.revalidation.trigger('portfolio');
+      this.revalidation.trigger('portfolio');
       return result;
     } catch (error) {
       this.handleNotFound(error, 'Project');
@@ -347,7 +347,7 @@ export class PortfolioService {
     try {
       await this.prisma.project.delete({ where: { id } });
       await this.invalidateCache();
-      await this.revalidation.trigger('portfolio');
+      this.revalidation.trigger('portfolio');
     } catch (error) {
       this.handleNotFound(error, 'Project');
     }
@@ -379,7 +379,7 @@ export class PortfolioService {
       data: { category: dto.category, name: dto.name, sortOrder: dto.sortOrder ?? 0 },
     });
     await this.invalidateCache();
-    await this.revalidation.trigger('portfolio');
+    this.revalidation.trigger('portfolio');
     return result;
   }
 
@@ -394,7 +394,7 @@ export class PortfolioService {
         },
       });
       await this.invalidateCache();
-      await this.revalidation.trigger('portfolio');
+      this.revalidation.trigger('portfolio');
       return result;
     } catch (error) {
       this.handleNotFound(error, 'Skill');
@@ -405,7 +405,7 @@ export class PortfolioService {
     try {
       await this.prisma.skill.delete({ where: { id } });
       await this.invalidateCache();
-      await this.revalidation.trigger('portfolio');
+      this.revalidation.trigger('portfolio');
     } catch (error) {
       this.handleNotFound(error, 'Skill');
     }
@@ -453,7 +453,7 @@ export class PortfolioService {
       include: { translations: true },
     });
     await this.invalidateCache();
-    await this.revalidation.trigger('portfolio');
+    this.revalidation.trigger('portfolio');
     return result;
   }
 
@@ -478,7 +478,7 @@ export class PortfolioService {
         include: { translations: true },
       });
       await this.invalidateCache();
-      await this.revalidation.trigger('portfolio');
+      this.revalidation.trigger('portfolio');
       return result;
     } catch (error) {
       this.handleNotFound(error, 'Education');
@@ -489,7 +489,7 @@ export class PortfolioService {
     try {
       await this.prisma.education.delete({ where: { id } });
       await this.invalidateCache();
-      await this.revalidation.trigger('portfolio');
+      this.revalidation.trigger('portfolio');
     } catch (error) {
       this.handleNotFound(error, 'Education');
     }
