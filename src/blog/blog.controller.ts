@@ -122,29 +122,13 @@ export class BlogController {
   }
 
   @ApiBearerAuth()
-  @Post('posts/:slug/thumbnail')
-  @ApiConsumes('multipart/form-data')
-  @ApiUnauthorized()
-  @ApiNotFound('Post')
-  @ApiBadRequest('No file provided or invalid file type')
-  async uploadThumbnail(@Param('slug') slug: string, @Req() request: MultipartRequest) {
-    const { buffer, mimeType } = await this.validateAndReadFile(request);
-    return this.blogService.updateThumbnail(
-      slug,
-      buffer,
-      `thumbnail${safeExtension(mimeType)}`,
-      mimeType,
-    );
-  }
-
-  @ApiBearerAuth()
   @Post('images')
   @ApiConsumes('multipart/form-data')
   @ApiUnauthorized()
   @ApiBadRequest('No file provided or invalid file type')
   async uploadImage(@Req() request: MultipartRequest) {
     const { buffer, mimeType } = await this.validateAndReadFile(request);
-    return this.blogService.uploadContentImage(buffer, `image${safeExtension(mimeType)}`, mimeType);
+    return this.blogService.uploadTempImage(buffer, `image${safeExtension(mimeType)}`, mimeType);
   }
 
   private async validateAndReadFile(request: MultipartRequest) {

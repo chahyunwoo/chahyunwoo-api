@@ -1,11 +1,18 @@
 import { randomUUID } from 'node:crypto';
-import { extname } from 'node:path';
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { Injectable } from '@nestjs/common';
+import {
+  CopyObjectCommand,
+  DeleteObjectCommand,
+  HeadObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class StorageService {
+  private readonly logger = new Logger(StorageService.name);
   private readonly client: S3Client;
   private readonly bucket: string;
   private readonly publicUrl: string;
@@ -26,9 +33,12 @@ export class StorageService {
     this.publicUrl = config.getOrThrow<string>('R2_PUBLIC_URL');
   }
 
+  getPublicUrl(): string {
+    return this.publicUrl;
+  }
+
   async upload(buffer: Buffer, filename: string, mimeType: string, prefix = ''): Promise<string> {
-    const ext = extname(filename);
-    const key = [prefix, `${randomUUID()}${ext}`].filter(Boolean).join('/');
+    const key = [prefix, `${randomUUID()}-${filename}`].filter(Boolean).join('/');
 
     await this.client.send(
       new PutObjectCommand({
@@ -42,10 +52,62 @@ export class StorageService {
     return `${this.publicUrl}/${key}`;
   }
 
+  async move(sourceUrl: string, destKey: string): Promise<string> {
+    const sourceKey = this.urlToKey(sourceUrl);
+    if (!sourceKey) return sourceUrl;
+
+    await this.client.send(
+      new CopyObjectCommand({
+        Bucket: this.bucket,
+        CopySource: `${this.bucket}/${sourceKey}`,
+        Key: destKey,
+      }),
+    );
+
+    // copy 성공 확인 후 원본 삭제
+    await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: destKey }));
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: sourceKey }));
+
+    return `${this.publicUrl}/${destKey}`;
+  }
+
   async delete(url: string): Promise<void> {
-    const prefix = `${this.publicUrl}/`;
-    if (!url.startsWith(prefix)) return;
-    const key = url.slice(prefix.length);
+    const key = this.urlToKey(url);
+    if (!key) return;
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+  }
+
+  async cleanupTempFiles(maxAgeMs = 24 * 60 * 60 * 1000): Promise<number> {
+    const cutoff = new Date(Date.now() - maxAgeMs);
+    let deleted = 0;
+
+    let continuationToken: string | undefined;
+    do {
+      const response = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucket,
+          Prefix: 'blog/temp/',
+          ContinuationToken: continuationToken,
+        }),
+      );
+
+      for (const obj of response.Contents ?? []) {
+        if (obj.Key && obj.LastModified && obj.LastModified < cutoff) {
+          await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: obj.Key }));
+          deleted++;
+        }
+      }
+
+      continuationToken = response.NextContinuationToken;
+    } while (continuationToken);
+
+    if (deleted > 0) this.logger.log(`Cleaned up ${deleted} temp files`);
+    return deleted;
+  }
+
+  private urlToKey(url: string): string | null {
+    const prefix = `${this.publicUrl}/`;
+    if (!url.startsWith(prefix)) return null;
+    return url.slice(prefix.length);
   }
 }

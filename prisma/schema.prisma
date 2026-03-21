@@ -34,12 +34,13 @@ model Post {
   thumbnailUrl String?   @map("thumbnail_url") @db.VarChar(1000)
   category     String?   @db.VarChar(200)
   published    Boolean   @default(false)
+  publishedAt  DateTime? @map("published_at") @db.Timestamptz(6)
   viewCount    Int       @default(0) @map("view_count")
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   postTags     PostTag[]
 
-  @@index([published, createdAt(sort: Desc)])
+  @@index([published, publishedAt(sort: Desc)])
   @@index([category])
   @@map("posts")
   @@schema("blog")
