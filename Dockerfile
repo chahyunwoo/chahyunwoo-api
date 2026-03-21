@@ -26,10 +26,11 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/prisma ./prisma
 COPY package.json ./
+COPY prisma.config.ts ./
 COPY scripts/start.sh ./scripts/start.sh
 RUN chmod +x ./scripts/start.sh
 
 ENV NODE_ENV=production
-EXPOSE 8000
+EXPOSE 4000
 
 CMD ["/bin/sh", "scripts/start.sh"]

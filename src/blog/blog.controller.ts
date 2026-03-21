@@ -13,24 +13,28 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
-import { FastifyRequest } from 'fastify';
-
 import { Public } from '../common/decorators/public.decorator';
+import {
+  ApiBadRequest,
+  ApiConflict,
+  ApiNotFound,
+  ApiUnauthorized,
+} from '../common/swagger/error-responses';
+import type { MultipartRequest } from '../types/fastify.d';
+import { ALLOWED_MIME_TYPES } from './blog.constants';
 import { BlogService } from './blog.service';
 import { CreatePostDto } from './dto/create-post.dto';
-import { PostQueryDto, SearchQueryDto } from './dto/post-query.dto';
+import { PostQueryDto, RecentQueryDto, SearchQueryDto, TagQueryDto } from './dto/post-query.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-
-const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 @ApiTags('blog')
 @Controller('api/blog')
 export class BlogController {
   constructor(private readonly blogService: BlogService) {}
 
-  // NOTE: /search must be registered before /:slug to avoid route conflict
   @Public()
   @Get('posts/search')
+  @ApiBadRequest('q must be at least 2 characters')
   search(@Query() query: SearchQueryDto) {
     return this.blogService.search(query);
   }
@@ -42,26 +46,51 @@ export class BlogController {
   }
 
   @Public()
+  @Get('posts/recent')
+  getRecentPosts(@Query() query: RecentQueryDto) {
+    return this.blogService.getRecentPosts(query.limit);
+  }
+
+  @Public()
   @Get('categories')
   getCategories() {
     return this.blogService.getCategories();
   }
 
   @Public()
+  @Get('tags')
+  getTags(@Query() query: TagQueryDto) {
+    return this.blogService.getTags(query);
+  }
+
+  @Public()
   @Get('posts/:slug')
+  @ApiNotFound('Post')
   findOne(@Param('slug') slug: string) {
     return this.blogService.findBySlug(slug);
+  }
+
+  @Public()
+  @Get('posts/:slug/related')
+  @ApiNotFound('Post')
+  getRelatedPosts(@Param('slug') slug: string) {
+    return this.blogService.getRelatedPosts(slug);
   }
 
   @ApiBearerAuth()
   @Post('posts')
   @HttpCode(HttpStatus.CREATED)
+  @ApiUnauthorized()
+  @ApiBadRequest()
+  @ApiConflict('Slug already exists')
   create(@Body() dto: CreatePostDto) {
     return this.blogService.create(dto);
   }
 
   @ApiBearerAuth()
   @Put('posts/:slug')
+  @ApiUnauthorized()
+  @ApiNotFound('Post')
   update(@Param('slug') slug: string, @Body() dto: UpdatePostDto) {
     return this.blogService.update(slug, dto);
   }
@@ -69,6 +98,8 @@ export class BlogController {
   @ApiBearerAuth()
   @Delete('posts/:slug')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiUnauthorized()
+  @ApiNotFound('Post')
   remove(@Param('slug') slug: string) {
     return this.blogService.remove(slug);
   }
@@ -76,7 +107,10 @@ export class BlogController {
   @ApiBearerAuth()
   @Post('posts/:slug/thumbnail')
   @ApiConsumes('multipart/form-data')
-  async uploadThumbnail(@Param('slug') slug: string, @Req() request: FastifyRequest) {
+  @ApiUnauthorized()
+  @ApiNotFound('Post')
+  @ApiBadRequest('No file provided or invalid file type')
+  async uploadThumbnail(@Param('slug') slug: string, @Req() request: MultipartRequest) {
     const data = await request.file();
     if (!data) throw new BadRequestException('No file provided');
     if (!ALLOWED_MIME_TYPES.has(data.mimetype)) {

@@ -1,9 +1,9 @@
-import multipart from '@fastify/multipart';
 import helmet from '@fastify/helmet';
+import multipart from '@fastify/multipart';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
-import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { AppModule } from './app.module';
@@ -24,6 +24,7 @@ async function bootstrap() {
 
   app.enableCors({
     origin: config.get<string>('ALLOWED_ORIGINS', '').split(','),
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: true,
   });
 

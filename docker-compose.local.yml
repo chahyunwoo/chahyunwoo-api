@@ -1,0 +1,23 @@
+# Local development — docker compose -f docker-compose.yml -f docker-compose.local.yml up
+services:
+  api:
+    env_file: .env
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-hyunwoo}
+
+  db:
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hyunwoo}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_local_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_local_data:

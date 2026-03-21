@@ -62,7 +62,7 @@ prisma/
 - `POST /api/blog/posts/:slug/thumbnail` (multipart)
 
 ### Swagger UI
-개발 환경에서만 노출: `http://localhost:8000/docs`
+개발 환경에서만 노출: `http://localhost:4000/docs`
 
 ## 브랜치 전략
 - `main` — 프로덕션
