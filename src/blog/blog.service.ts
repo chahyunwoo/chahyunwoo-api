@@ -327,7 +327,10 @@ export class BlogService {
 
   async updateCategory(id: number, dto: { name?: string; icon?: string; sortOrder?: number }) {
     try {
-      return await this.prisma.category.update({
+      const existing = await this.prisma.category.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundException('Category not found');
+
+      const updated = await this.prisma.category.update({
         where: { id },
         data: {
           ...(dto.name !== undefined && { name: dto.name }),
@@ -335,6 +338,17 @@ export class BlogService {
           ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
         },
       });
+
+      // 이름 변경 시 포스트의 category 문자열도 같이 업데이트
+      if (dto.name !== undefined && dto.name !== existing.name) {
+        await this.prisma.post.updateMany({
+          where: { category: existing.name },
+          data: { category: dto.name },
+        });
+        await this.cache.invalidate();
+      }
+
+      return updated;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         throw new NotFoundException('Category not found');
@@ -344,14 +358,16 @@ export class BlogService {
   }
 
   async deleteCategory(id: number): Promise<void> {
-    try {
-      await this.prisma.category.delete({ where: { id } });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        throw new NotFoundException('Category not found');
-      }
-      throw error;
+    const existing = await this.prisma.category.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Category not found');
+
+    // 해당 카테고리를 사용하는 포스트가 있으면 삭제 불가
+    const postCount = await this.prisma.post.count({ where: { category: existing.name } });
+    if (postCount > 0) {
+      throw new ConflictException(`Cannot delete category: ${postCount} posts are using it`);
     }
+
+    await this.prisma.category.delete({ where: { id } });
   }
 
   // ─── Write ────────────────────────────────────────────────────────────────
