@@ -25,6 +25,11 @@ export class ApiKeyGuard implements CanActivate {
     if (skipApiKey) return true;
 
     const request = context.switchToHttp().getRequest<FastifyRequest>();
+
+    // JWT Bearer 토큰이 있으면 어드민 요청이므로 API Key 체크 건너뜀
+    const authHeader = request.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) return true;
+
     const apiKey = request.headers['x-api-key'];
     const expectedKey = this.config.getOrThrow<string>('API_KEY');
 

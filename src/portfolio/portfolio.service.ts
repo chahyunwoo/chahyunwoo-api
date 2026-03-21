@@ -11,6 +11,7 @@ interface CacheStore {
 
 import { PrismaService } from '../prisma/prisma.service';
 import { RevalidationService } from '../revalidation/revalidation.service';
+import { StorageService } from '../storage/storage.service';
 import type {
   CreateEducationDto,
   CreateExperienceDto,
@@ -31,6 +32,7 @@ export class PortfolioService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly revalidation: RevalidationService,
+    private readonly storage: StorageService,
     @Inject(CACHE_MANAGER) private readonly cache: CacheStore,
   ) {}
 
@@ -69,6 +71,7 @@ export class PortfolioService {
       name: profile.name,
       location: profile.location,
       imageUrl: profile.imageUrl,
+      iconUrl: profile.iconUrl,
       socialLinks: profile.socialLinks,
       jobTitle: t?.jobTitle ?? '',
       introduction: t?.introduction ?? [],
@@ -86,15 +89,26 @@ export class PortfolioService {
         data: {
           name: dto.name ?? '',
           location: dto.location ?? '',
+          imageUrl: dto.imageUrl,
+          iconUrl: dto.iconUrl,
           socialLinks: (dto.socialLinks ?? undefined) as unknown as Prisma.InputJsonValue,
         },
       });
     } else {
+      if (dto.imageUrl !== undefined && profile.imageUrl) {
+        await this.storage.delete(profile.imageUrl);
+      }
+      if (dto.iconUrl !== undefined && profile.iconUrl) {
+        await this.storage.delete(profile.iconUrl);
+      }
+
       profile = await this.prisma.profile.update({
         where: { id: profile.id },
         data: {
           ...(dto.name !== undefined && { name: dto.name }),
           ...(dto.location !== undefined && { location: dto.location }),
+          ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
+          ...(dto.iconUrl !== undefined && { iconUrl: dto.iconUrl }),
           ...(dto.socialLinks !== undefined && {
             socialLinks: dto.socialLinks as unknown as Prisma.InputJsonValue,
           }),

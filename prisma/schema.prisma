@@ -57,6 +57,7 @@ model Profile {
   name         String               @db.VarChar(100)
   location     String               @db.VarChar(200)
   imageUrl     String?              @map("image_url") @db.VarChar(1000)
+  iconUrl      String?              @map("icon_url") @db.VarChar(1000)
   socialLinks  Json?                @map("social_links")
   translations ProfileTranslation[]
 
