@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  schemas   = ["blog", "portfolio"]
+}
+
+// ─── Blog ────────────────────────────────────────────────────────────────────
+
+model Post {
+  id           Int       @id @default(autoincrement())
+  title        String    @db.VarChar(500)
+  slug         String    @unique @db.VarChar(500)
+  description  String?   @db.Text
+  content      String    @db.Text
+  thumbnailUrl String?   @map("thumbnail_url") @db.VarChar(1000)
+  category     String?   @db.VarChar(200)
+  published    Boolean   @default(false)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  postTags     PostTag[]
+
+  @@index([published, createdAt(sort: Desc)])
+  @@index([category])
+  @@map("posts")
+  @@schema("blog")
+}
+
+model Tag {
+  id       Int       @id @default(autoincrement())
+  name     String    @db.VarChar(200)
+  slug     String    @unique @db.VarChar(200)
+  postTags PostTag[]
+
+  @@map("tags")
+  @@schema("blog")
+}
+
+model PostTag {
+  postId Int  @map("post_id")
+  tagId  Int  @map("tag_id")
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@map("post_tags")
+  @@schema("blog")
+}
+
+// ─── Portfolio ───────────────────────────────────────────────────────────────
+
+model Experience {
+  id            Int                 @id @default(autoincrement())
+  companyName   String              @map("company_name") @db.VarChar(300)
+  role          String              @db.VarChar(300)
+  durationStart String              @map("duration_start") @db.VarChar(50)
+  durationEnd   String?             @map("duration_end") @db.VarChar(50)
+  description   String?             @db.Text
+  displayOrder  Int                 @default(0) @map("display_order")
+  projects      ExperienceProject[]
+
+  @@index([displayOrder])
+  @@map("experiences")
+  @@schema("portfolio")
+}
+
+model ExperienceProject {
+  id           Int        @id @default(autoincrement())
+  experienceId Int        @map("experience_id")
+  title        String     @db.VarChar(500)
+  descriptions String[]   @db.Text
+  displayOrder Int        @default(0) @map("display_order")
+  experience   Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+
+  @@map("experience_projects")
+  @@schema("portfolio")
+}
+
+model Project {
+  id           Int      @id @default(autoincrement())
+  title        String   @db.VarChar(500)
+  description  String?  @db.Text
+  stack        String?  @db.VarChar(200)
+  skills       String[]
+  imageUrl     String?  @map("image_url") @db.VarChar(1000)
+  url          String?  @db.VarChar(1000)
+  isFeatured   Boolean  @default(false) @map("is_featured")
+  displayOrder Int      @default(0) @map("display_order")
+
+  @@index([displayOrder])
+  @@map("projects")
+  @@schema("portfolio")
+}
+
+model Skill {
+  id           Int     @id @default(autoincrement())
+  name         String  @db.VarChar(200)
+  category     String  @db.VarChar(100)
+  value        Int     @default(0)
+  content      String? @db.Text
+  displayOrder Int     @default(0) @map("display_order")
+
+  @@index([category])
+  @@map("skills")
+  @@schema("portfolio")
+}
+
+model Education {
+  id           Int     @id @default(autoincrement())
+  institution  String  @db.VarChar(300)
+  degree       String  @db.VarChar(300)
+  periodStart  String  @map("period_start") @db.VarChar(50)
+  periodEnd    String? @map("period_end") @db.VarChar(50)
+  description  String? @db.Text
+  displayOrder Int     @default(0) @map("display_order")
+
+  @@map("education")
+  @@schema("portfolio")
+}
