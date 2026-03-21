@@ -1,10 +1,10 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Post, PostTag, Tag } from '@prisma/client';
-
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { RECENT_DAYS, RELATED_POST_COUNT } from './blog.constants';
 import type { CreatePostDto } from './dto/create-post.dto';
-import type { PostQueryDto, SearchQueryDto } from './dto/post-query.dto';
+import type { PostQueryDto, SearchQueryDto, TagQueryDto } from './dto/post-query.dto';
 import type { UpdatePostDto } from './dto/update-post.dto';
 
 type PostWithTags = Post & {
@@ -72,7 +72,8 @@ export class BlogService {
       OR: [
         { title: { contains: q, mode: 'insensitive' as const } },
         { description: { contains: q, mode: 'insensitive' as const } },
-        { content: { contains: q, mode: 'insensitive' as const } },
+        { category: { contains: q, mode: 'insensitive' as const } },
+        { postTags: { some: { tag: { name: { contains: q, mode: 'insensitive' as const } } } } },
       ],
     };
 
@@ -89,32 +90,50 @@ export class BlogService {
       this.prisma.post.count({ where }),
     ]);
 
+    const formatted = (posts as PostWithTags[]).map(post => this.formatPost(post));
+
+    const grouped: Record<string, typeof formatted> = {};
+    for (const post of formatted) {
+      const cat = (post.category as string) ?? 'Uncategorized';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(post);
+    }
+
     return {
-      posts: (posts as PostWithTags[]).map(post => this.formatPost(post)),
+      posts: formatted,
       total,
       query: q,
+      grouped,
     };
   }
 
   async getCategories() {
     const posts = await this.prisma.post.findMany({
       where: { published: true, category: { not: null } },
-      select: { category: true, postTags: { select: { tag: true } } },
+      select: { category: true, createdAt: true, postTags: { select: { tag: true } } },
     });
+
+    const recentThreshold = new Date();
+    recentThreshold.setDate(recentThreshold.getDate() - RECENT_DAYS);
 
     const map = new Map<
       string,
-      { count: number; tags: Map<string, { name: string; slug: string; count: number }> }
+      {
+        count: number;
+        recent: boolean;
+        tags: Map<string, { name: string; slug: string; count: number }>;
+      }
     >();
 
     for (const post of posts) {
       const cat = post.category as string;
       let entry = map.get(cat);
       if (!entry) {
-        entry = { count: 0, tags: new Map() };
+        entry = { count: 0, recent: false, tags: new Map() };
         map.set(cat, entry);
       }
       entry.count += 1;
+      if (post.createdAt >= recentThreshold) entry.recent = true;
 
       for (const { tag } of post.postTags) {
         const existing = entry.tags.get(tag.slug);
@@ -130,9 +149,108 @@ export class BlogService {
       .map(([category, data]) => ({
         category,
         count: data.count,
+        recent: data.recent,
         tags: Array.from(data.tags.values()).sort((a, b) => b.count - a.count),
       }))
       .sort((a, b) => b.count - a.count);
+  }
+
+  async getRecentPosts(limit = 5) {
+    const posts = await this.prisma.post.findMany({
+      where: { published: true },
+      include: { postTags: { include: { tag: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+
+    return (posts as PostWithTags[]).map(post => this.formatPost(post));
+  }
+
+  async getTags(query: TagQueryDto) {
+    const { limit = 15 } = query;
+
+    const [tags, total] = await this.prisma.$transaction([
+      this.prisma.tag.findMany({
+        include: { _count: { select: { postTags: true } } },
+        orderBy: { postTags: { _count: 'desc' } },
+        take: limit,
+      }),
+      this.prisma.tag.count(),
+    ]);
+
+    return {
+      tags: tags.map(tag => ({
+        name: tag.name,
+        slug: tag.slug,
+        count: tag._count.postTags,
+      })),
+      total,
+    };
+  }
+
+  async getRelatedPosts(slug: string) {
+    const post = (await this.prisma.post.findUnique({
+      where: { slug },
+      include: { postTags: { include: { tag: true } } },
+    })) as PostWithTags | null;
+
+    if (!post) throw new NotFoundException('Post not found');
+
+    const tagIds = post.postTags.map(pt => pt.tagId);
+
+    const candidates = (await this.prisma.post.findMany({
+      where: {
+        published: true,
+        id: { not: post.id },
+        OR: [
+          { category: post.category },
+          ...(tagIds.length > 0 ? [{ postTags: { some: { tagId: { in: tagIds } } } }] : []),
+        ],
+      },
+      include: { postTags: { include: { tag: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: RELATED_POST_COUNT * 10,
+    })) as PostWithTags[];
+
+    const scored = candidates
+      .map(candidate => {
+        const candidateTagIds = new Set(candidate.postTags.map(pt => pt.tagId));
+        const overlap = tagIds.filter(id => candidateTagIds.has(id)).length;
+        const sameCategory = candidate.category === post.category ? 1 : 0;
+        return { post: candidate, score: overlap + sameCategory };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    const related = scored.slice(0, RELATED_POST_COUNT).map(s => this.formatPost(s.post));
+
+    const deficit = RELATED_POST_COUNT - related.length;
+    let recommended: ReturnType<typeof this.formatPost>[] = [];
+
+    if (deficit > 0) {
+      const excludeIds = new Set([
+        post.id,
+        ...scored.slice(0, RELATED_POST_COUNT).map(s => s.post.id),
+      ]);
+
+      const count = await this.prisma.post.count({
+        where: { published: true, id: { notIn: [...excludeIds] } },
+      });
+      const randomSkip = Math.max(0, Math.floor(Math.random() * (count - deficit)));
+
+      const pool = (await this.prisma.post.findMany({
+        where: {
+          published: true,
+          id: { notIn: [...excludeIds] },
+        },
+        include: { postTags: { include: { tag: true } } },
+        skip: randomSkip,
+        take: deficit,
+      })) as PostWithTags[];
+
+      recommended = pool.map(p => this.formatPost(p));
+    }
+
+    return { related, recommended };
   }
 
   async create(dto: CreatePostDto) {
@@ -193,6 +311,10 @@ export class BlogService {
   async updateThumbnail(slug: string, buffer: Buffer, filename: string, mimeType: string) {
     const existing = await this.prisma.post.findUnique({ where: { slug } });
     if (!existing) throw new NotFoundException('Post not found');
+
+    if (existing.thumbnailUrl) {
+      await this.storage.delete(existing.thumbnailUrl);
+    }
 
     const url = await this.storage.upload(buffer, filename, mimeType, 'blog/thumbnails');
 
