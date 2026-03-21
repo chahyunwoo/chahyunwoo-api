@@ -1,5 +1,7 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Post, PostTag, Tag } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RevalidationService } from '../revalidation/revalidation.service';
 import { StorageService } from '../storage/storage.service';
@@ -8,9 +10,19 @@ import type { CreatePostDto } from './dto/create-post.dto';
 import type { PostQueryDto, SearchQueryDto, TagQueryDto } from './dto/post-query.dto';
 import type { UpdatePostDto } from './dto/update-post.dto';
 
+interface CacheStore {
+  get<T>(key: string): Promise<T | undefined>;
+  set<T>(key: string, value: T, ttl?: number): Promise<void>;
+  del(key: string): Promise<void>;
+  clear(): Promise<void>;
+}
+
 type PostWithTags = Post & {
   postTags: Array<PostTag & { tag: Tag }>;
 };
+
+const CACHE_PREFIX = 'blog';
+const CACHE_TTL = 60_000; // 1 minute (블로그는 포트폴리오보다 자주 바뀜)
 
 @Injectable()
 export class BlogService {
@@ -18,12 +30,28 @@ export class BlogService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly revalidation: RevalidationService,
+    @Inject(CACHE_MANAGER) private readonly cache: CacheStore,
   ) {}
+
+  // ─── Cache Helpers ────────────────────────────────────────────────────────
+
+  private cacheKey(key: string): string {
+    return `${CACHE_PREFIX}:${key}`;
+  }
+
+  private async invalidateCache(): Promise<void> {
+    await this.cache.clear();
+  }
+
+  // ─── Read ─────────────────────────────────────────────────────────────────
 
   async findAll(query: PostQueryDto) {
     const { page = 1, limit = 10, category, tag } = query;
-    const skip = (page - 1) * limit;
+    const key = this.cacheKey(`posts:${page}:${limit}:${category ?? ''}:${tag ?? ''}`);
+    const cached = await this.cache.get(key);
+    if (cached) return cached;
 
+    const skip = (page - 1) * limit;
     const where = {
       published: true,
       ...(category && { category }),
@@ -43,16 +71,25 @@ export class BlogService {
       this.prisma.post.count({ where }),
     ]);
 
-    return {
+    const result = {
       posts: (posts as PostWithTags[]).map(post => this.formatPost(post)),
       total,
       page,
       limit,
       totalPages: Math.ceil(total / limit),
     };
+
+    await this.cache.set(key, result, CACHE_TTL);
+    return result;
   }
 
   async findBySlug(slug: string, isAdmin = false) {
+    const key = this.cacheKey(`post:${slug}`);
+    if (!isAdmin) {
+      const cached = await this.cache.get(key);
+      if (cached) return cached;
+    }
+
     const post = (await this.prisma.post.findUnique({
       where: { slug },
       include: { postTags: { include: { tag: true } } },
@@ -62,7 +99,9 @@ export class BlogService {
       throw new NotFoundException('Post not found');
     }
 
-    return this.formatPost(post, true);
+    const result = this.formatPost(post, true);
+    if (!isAdmin) await this.cache.set(key, result, CACHE_TTL);
+    return result;
   }
 
   async search(query: SearchQueryDto) {
@@ -101,63 +140,77 @@ export class BlogService {
       grouped[cat].push(post);
     }
 
-    return {
-      posts: formatted,
-      total,
-      query: q,
-      grouped,
-    };
+    return { posts: formatted, total, query: q, grouped };
   }
 
   async getCategories() {
-    const posts = await this.prisma.post.findMany({
-      where: { published: true, category: { not: null } },
-      select: { category: true, createdAt: true, postTags: { select: { tag: true } } },
-    });
+    const key = this.cacheKey('categories');
+    const cached = await this.cache.get(key);
+    if (cached) return cached;
 
     const recentThreshold = new Date();
     recentThreshold.setDate(recentThreshold.getDate() - RECENT_DAYS);
 
-    const map = new Map<
-      string,
-      {
-        count: number;
-        recent: boolean;
-        tags: Map<string, { name: string; slug: string; count: number }>;
-      }
-    >();
+    // 카테고리별 카운트 + 최근 여부를 2개 쿼리로 분리 (메모리 집계 최소화)
+    const [categoryCounts, recentCategories, tagCounts] = await Promise.all([
+      this.prisma.post.groupBy({
+        by: ['category'],
+        where: { published: true, category: { not: null } },
+        _count: true,
+      }),
+      this.prisma.post.groupBy({
+        by: ['category'],
+        where: { published: true, category: { not: null }, createdAt: { gte: recentThreshold } },
+        _count: true,
+      }),
+      this.prisma.postTag.findMany({
+        where: { post: { published: true, category: { not: null } } },
+        select: {
+          tag: { select: { name: true, slug: true } },
+          post: { select: { category: true } },
+        },
+      }),
+    ]);
 
-    for (const post of posts) {
-      const cat = post.category as string;
-      let entry = map.get(cat);
-      if (!entry) {
-        entry = { count: 0, recent: false, tags: new Map() };
-        map.set(cat, entry);
-      }
-      entry.count += 1;
-      if (post.createdAt >= recentThreshold) entry.recent = true;
+    const recentSet = new Set(recentCategories.map(r => r.category));
 
-      for (const { tag } of post.postTags) {
-        const existing = entry.tags.get(tag.slug);
-        if (existing) {
-          existing.count += 1;
-        } else {
-          entry.tags.set(tag.slug, { name: tag.name, slug: tag.slug, count: 1 });
-        }
+    // 태그 카운트 집계
+    const tagMap = new Map<string, Map<string, { name: string; slug: string; count: number }>>();
+    for (const row of tagCounts) {
+      const cat = row.post.category as string;
+      let catTags = tagMap.get(cat);
+      if (!catTags) {
+        catTags = new Map();
+        tagMap.set(cat, catTags);
+      }
+      const existing = catTags.get(row.tag.slug);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        catTags.set(row.tag.slug, { name: row.tag.name, slug: row.tag.slug, count: 1 });
       }
     }
 
-    return Array.from(map.entries())
-      .map(([category, data]) => ({
-        category,
-        count: data.count,
-        recent: data.recent,
-        tags: Array.from(data.tags.values()).sort((a, b) => b.count - a.count),
+    const result = categoryCounts
+      .map(c => ({
+        category: c.category as string,
+        count: c._count,
+        recent: recentSet.has(c.category),
+        tags: Array.from(tagMap.get(c.category as string)?.values() ?? []).sort(
+          (a, b) => b.count - a.count,
+        ),
       }))
       .sort((a, b) => b.count - a.count);
+
+    await this.cache.set(key, result, CACHE_TTL);
+    return result;
   }
 
   async getRecentPosts(limit = 5) {
+    const key = this.cacheKey(`recent:${limit}`);
+    const cached = await this.cache.get(key);
+    if (cached) return cached;
+
     const posts = await this.prisma.post.findMany({
       where: { published: true },
       include: { postTags: { include: { tag: true } } },
@@ -165,11 +218,16 @@ export class BlogService {
       take: limit,
     });
 
-    return (posts as PostWithTags[]).map(post => this.formatPost(post));
+    const result = (posts as PostWithTags[]).map(post => this.formatPost(post));
+    await this.cache.set(key, result, CACHE_TTL);
+    return result;
   }
 
   async getTags(query: TagQueryDto) {
     const { limit = 15 } = query;
+    const key = this.cacheKey(`tags:${limit}`);
+    const cached = await this.cache.get(key);
+    if (cached) return cached;
 
     const [tags, total] = await this.prisma.$transaction([
       this.prisma.tag.findMany({
@@ -180,17 +238,20 @@ export class BlogService {
       this.prisma.tag.count(),
     ]);
 
-    return {
-      tags: tags.map(tag => ({
-        name: tag.name,
-        slug: tag.slug,
-        count: tag._count.postTags,
-      })),
+    const result = {
+      tags: tags.map(tag => ({ name: tag.name, slug: tag.slug, count: tag._count.postTags })),
       total,
     };
+
+    await this.cache.set(key, result, CACHE_TTL);
+    return result;
   }
 
   async getRelatedPosts(slug: string) {
+    const key = this.cacheKey(`related:${slug}`);
+    const cached = await this.cache.get(key);
+    if (cached) return cached;
+
     const post = (await this.prisma.post.findUnique({
       where: { slug },
       include: { postTags: { include: { tag: true } } },
@@ -240,10 +301,7 @@ export class BlogService {
       const randomSkip = Math.max(0, Math.floor(Math.random() * (count - deficit)));
 
       const pool = (await this.prisma.post.findMany({
-        where: {
-          published: true,
-          id: { notIn: [...excludeIds] },
-        },
+        where: { published: true, id: { notIn: [...excludeIds] } },
         include: { postTags: { include: { tag: true } } },
         skip: randomSkip,
         take: deficit,
@@ -252,8 +310,12 @@ export class BlogService {
       recommended = pool.map(p => this.formatPost(p));
     }
 
-    return { related, recommended };
+    const result = { related, recommended };
+    await this.cache.set(key, result, CACHE_TTL);
+    return result;
   }
+
+  // ─── Write ────────────────────────────────────────────────────────────────
 
   async create(dto: CreatePostDto) {
     const existing = await this.prisma.post.findUnique({ where: { slug: dto.slug } });
@@ -276,43 +338,55 @@ export class BlogService {
     })) as PostWithTags;
 
     const result = this.formatPost(post, true);
-    await this.revalidation.trigger('blog', post.slug);
+    await this.invalidateCache();
+    this.revalidation.trigger('blog', post.slug);
     return result;
   }
 
   async update(slug: string, dto: UpdatePostDto) {
-    const existing = await this.prisma.post.findUnique({ where: { slug } });
-    if (!existing) throw new NotFoundException('Post not found');
+    try {
+      const post = (await this.prisma.post.update({
+        where: { slug },
+        data: {
+          ...(dto.title !== undefined && { title: dto.title }),
+          ...(dto.description !== undefined && { description: dto.description }),
+          ...(dto.content !== undefined && { content: dto.content }),
+          ...(dto.thumbnailUrl !== undefined && { thumbnailUrl: dto.thumbnailUrl }),
+          ...(dto.category !== undefined && { category: dto.category }),
+          ...(dto.published !== undefined && { published: dto.published }),
+          ...(dto.tags !== undefined && {
+            postTags: {
+              deleteMany: {},
+              create: await this.resolveTagConnections(dto.tags),
+            },
+          }),
+        },
+        include: { postTags: { include: { tag: true } } },
+      })) as PostWithTags;
 
-    const post = (await this.prisma.post.update({
-      where: { slug },
-      data: {
-        ...(dto.title !== undefined && { title: dto.title }),
-        ...(dto.description !== undefined && { description: dto.description }),
-        ...(dto.content !== undefined && { content: dto.content }),
-        ...(dto.thumbnailUrl !== undefined && { thumbnailUrl: dto.thumbnailUrl }),
-        ...(dto.category !== undefined && { category: dto.category }),
-        ...(dto.published !== undefined && { published: dto.published }),
-        ...(dto.tags !== undefined && {
-          postTags: {
-            deleteMany: {},
-            create: await this.resolveTagConnections(dto.tags),
-          },
-        }),
-      },
-      include: { postTags: { include: { tag: true } } },
-    })) as PostWithTags;
-
-    const result = this.formatPost(post, true);
-    await this.revalidation.trigger('blog', post.slug);
-    return result;
+      const result = this.formatPost(post, true);
+      await this.invalidateCache();
+      this.revalidation.trigger('blog', post.slug);
+      return result;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new NotFoundException('Post not found');
+      }
+      throw error;
+    }
   }
 
   async remove(slug: string): Promise<void> {
-    const existing = await this.prisma.post.findUnique({ where: { slug } });
-    if (!existing) throw new NotFoundException('Post not found');
-    await this.prisma.post.delete({ where: { slug } });
-    await this.revalidation.trigger('blog', slug);
+    try {
+      await this.prisma.post.delete({ where: { slug } });
+      await this.invalidateCache();
+      this.revalidation.trigger('blog', slug);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new NotFoundException('Post not found');
+      }
+      throw error;
+    }
   }
 
   async updateThumbnail(slug: string, buffer: Buffer, filename: string, mimeType: string) {
@@ -331,8 +405,11 @@ export class BlogService {
       include: { postTags: { include: { tag: true } } },
     })) as PostWithTags;
 
+    await this.invalidateCache();
     return this.formatPost(post, true);
   }
+
+  // ─── Private ──────────────────────────────────────────────────────────────
 
   private async resolveTagConnections(tagNames: string[]) {
     return Promise.all(
