@@ -24,7 +24,11 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   app.enableCors({
-    origin: config.get<string>('ALLOWED_ORIGINS', '').split(','),
+    origin: config
+      .get<string>('ALLOWED_ORIGINS', '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: true,
   });

@@ -30,7 +30,7 @@ export class AdminLogService {
   async getRecent(limit = 20) {
     return this.prisma.adminLog.findMany({
       orderBy: { createdAt: 'desc' },
-      take: limit,
+      take: Math.min(Math.max(1, limit), 100),
     });
   }
 }

@@ -1,19 +1,23 @@
+import type { IncomingMessage } from 'node:http';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
-import type { FastifyRequest } from 'fastify';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
 interface JwtPayload {
   sub: string;
 }
 
-function extractFromCookieOrHeader(req: FastifyRequest): string | null {
-  const cookieToken = (req as FastifyRequest & { cookies: Record<string, string> }).cookies
-    ?.access_token;
+interface RequestWithCookies extends IncomingMessage {
+  cookies?: Record<string, string>;
+  headers: IncomingMessage['headers'] & { authorization?: string };
+}
+
+function extractFromCookieOrHeader(req: RequestWithCookies): string | null {
+  const cookieToken = req.cookies?.access_token;
   if (cookieToken) return cookieToken;
 
-  return ExtractJwt.fromAuthHeaderAsBearerToken()(req as never);
+  return ExtractJwt.fromAuthHeaderAsBearerToken()(req);
 }
 
 @Injectable()

@@ -1,10 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class TrackPageViewDto {
   @ApiProperty({ example: '/blog/my-post' })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(500)
   path: string;
 
   @ApiProperty({ enum: ['blog', 'portfolio', 'admin'], example: 'blog' })
@@ -15,5 +16,6 @@ export class TrackPageViewDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(1000)
   referrer?: string;
 }
