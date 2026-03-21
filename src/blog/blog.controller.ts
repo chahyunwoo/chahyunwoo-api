@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseIntPipe,
   Post,
   Put,
   Query,
@@ -26,6 +27,7 @@ import type { MultipartRequest } from '../types/fastify.d';
 import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE } from './blog.constants';
 import { BlogService } from './blog.service';
 import { safeExtension } from './blog.utils';
+import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreatePostDto } from './dto/create-post.dto';
 import { PostQueryDto, RecentQueryDto, SearchQueryDto, TagQueryDto } from './dto/post-query.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
@@ -61,6 +63,26 @@ export class BlogController {
   @Get('categories')
   getCategories() {
     return this.blogService.getCategories();
+  }
+
+  @ApiBearerAuth()
+  @Post('categories')
+  @HttpCode(HttpStatus.CREATED)
+  createCategory(@Body() dto: CreateCategoryDto) {
+    return this.blogService.createCategory(dto);
+  }
+
+  @ApiBearerAuth()
+  @Put('categories/:id')
+  updateCategory(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateCategoryDto) {
+    return this.blogService.updateCategory(id, dto);
+  }
+
+  @ApiBearerAuth()
+  @Delete('categories/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  deleteCategory(@Param('id', ParseIntPipe) id: number) {
+    return this.blogService.deleteCategory(id);
   }
 
   @Public()

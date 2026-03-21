@@ -25,6 +25,17 @@ model RefreshToken {
 
 // ─── Blog ────────────────────────────────────────────────────────────────────
 
+model Category {
+  id        Int    @id @default(autoincrement())
+  name      String @unique @db.VarChar(200)
+  icon      String @default("LayoutGrid") @db.VarChar(100)
+  sortOrder Int    @default(0) @map("sort_order")
+
+  @@index([sortOrder])
+  @@map("categories")
+  @@schema("blog")
+}
+
 model Post {
   id           Int       @id @default(autoincrement())
   title        String    @db.VarChar(500)

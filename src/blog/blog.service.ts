@@ -151,7 +151,7 @@ export class BlogService {
     recentThreshold.setDate(recentThreshold.getDate() - RECENT_DAYS);
 
     // 카테고리별 카운트 + 최근 여부를 2개 쿼리로 분리 (메모리 집계 최소화)
-    const [categoryCounts, recentCategories, tagCounts] = await Promise.all([
+    const [categoryCounts, recentCategories, tagCounts, categoryMeta] = await Promise.all([
       this.prisma.post.groupBy({
         by: ['category'],
         where: { published: true, category: { not: null } },
@@ -169,9 +169,11 @@ export class BlogService {
           post: { select: { category: true } },
         },
       }),
+      this.prisma.category.findMany(),
     ]);
 
     const recentSet = new Set(recentCategories.map(r => r.category));
+    const iconMap = new Map(categoryMeta.map(c => [c.name, c.icon]));
 
     // 태그 카운트 집계
     const tagMap = new Map<string, Map<string, { name: string; slug: string; count: number }>>();
@@ -193,6 +195,7 @@ export class BlogService {
     const result = categoryCounts
       .map(c => ({
         category: c.category as string,
+        icon: iconMap.get(c.category as string) ?? 'LayoutGrid',
         count: c._count,
         recent: recentSet.has(c.category),
         tags: Array.from(tagMap.get(c.category as string)?.values() ?? []).sort(
@@ -312,6 +315,43 @@ export class BlogService {
     const result = { related, recommended };
     await this.cache.set(key, result, CACHE_TTL);
     return result;
+  }
+
+  // ─── Category CRUD ─────────────────────────────────────────────────────────
+
+  async createCategory(dto: { name: string; icon?: string; sortOrder?: number }) {
+    return this.prisma.category.create({
+      data: { name: dto.name, icon: dto.icon ?? 'LayoutGrid', sortOrder: dto.sortOrder ?? 0 },
+    });
+  }
+
+  async updateCategory(id: number, dto: { name?: string; icon?: string; sortOrder?: number }) {
+    try {
+      return await this.prisma.category.update({
+        where: { id },
+        data: {
+          ...(dto.name !== undefined && { name: dto.name }),
+          ...(dto.icon !== undefined && { icon: dto.icon }),
+          ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new NotFoundException('Category not found');
+      }
+      throw error;
+    }
+  }
+
+  async deleteCategory(id: number): Promise<void> {
+    try {
+      await this.prisma.category.delete({ where: { id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new NotFoundException('Category not found');
+      }
+      throw error;
+    }
   }
 
   // ─── Write ────────────────────────────────────────────────────────────────
