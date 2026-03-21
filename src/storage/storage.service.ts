@@ -43,7 +43,9 @@ export class StorageService {
   }
 
   async delete(url: string): Promise<void> {
-    const key = url.replace(`${this.publicUrl}/`, '');
+    const prefix = `${this.publicUrl}/`;
+    if (!url.startsWith(prefix)) return;
+    const key = url.slice(prefix.length);
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
   }
 }
