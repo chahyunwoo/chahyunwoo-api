@@ -450,7 +450,16 @@ export class BlogService {
 
   async remove(slug: string): Promise<void> {
     try {
+      // 삭제 전 포스트 데이터 가져와서 R2 파일 정리용
+      const post = await this.prisma.post.findUnique({ where: { slug } });
+      if (!post) throw new NotFoundException('Post not found');
+
       await this.prisma.post.delete({ where: { slug } });
+
+      // R2 파일 정리 (fire-and-forget)
+      this.cleanupPostImages(post.content, post.thumbnailUrl).catch(err =>
+        this.logger.warn('Post image cleanup failed', err),
+      );
       await this.cache.invalidate();
       this.revalidation
         .trigger('blog', slug)
@@ -469,6 +478,25 @@ export class BlogService {
   async uploadTempImage(buffer: Buffer, filename: string, mimeType: string) {
     const url = await this.storage.upload(buffer, filename, mimeType, 'blog/temp');
     return { url };
+  }
+
+  private async cleanupPostImages(content: string, thumbnailUrl: string | null): Promise<void> {
+    const publicUrl = this.storage.getPublicUrl();
+    const urlPattern = new RegExp(
+      `${publicUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/blog/[^"\\s)]+`,
+      'g',
+    );
+
+    // content 내 모든 R2 이미지 URL 삭제
+    const urls = content.match(urlPattern) ?? [];
+    for (const url of urls) {
+      await this.storage.delete(url).catch(() => {});
+    }
+
+    // 썸네일 삭제
+    if (thumbnailUrl) {
+      await this.storage.delete(thumbnailUrl).catch(() => {});
+    }
   }
 
   // ─── Private ──────────────────────────────────────────────────────────────
