@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Post, PostTag, Tag } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { RevalidationService } from '../revalidation/revalidation.service';
 import { StorageService } from '../storage/storage.service';
 import { RECENT_DAYS, RELATED_POST_COUNT } from './blog.constants';
 import type { CreatePostDto } from './dto/create-post.dto';
@@ -16,6 +17,7 @@ export class BlogService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly revalidation: RevalidationService,
   ) {}
 
   async findAll(query: PostQueryDto) {
@@ -255,7 +257,7 @@ export class BlogService {
 
   async create(dto: CreatePostDto) {
     const existing = await this.prisma.post.findUnique({ where: { slug: dto.slug } });
-    if (existing) throw new ConflictException(`Slug '${dto.slug}' already exists`);
+    if (existing) throw new ConflictException('Slug already exists');
 
     const post = (await this.prisma.post.create({
       data: {
@@ -273,7 +275,9 @@ export class BlogService {
       include: { postTags: { include: { tag: true } } },
     })) as PostWithTags;
 
-    return this.formatPost(post, true);
+    const result = this.formatPost(post, true);
+    await this.revalidation.trigger('blog', post.slug);
+    return result;
   }
 
   async update(slug: string, dto: UpdatePostDto) {
@@ -299,13 +303,16 @@ export class BlogService {
       include: { postTags: { include: { tag: true } } },
     })) as PostWithTags;
 
-    return this.formatPost(post, true);
+    const result = this.formatPost(post, true);
+    await this.revalidation.trigger('blog', post.slug);
+    return result;
   }
 
   async remove(slug: string): Promise<void> {
     const existing = await this.prisma.post.findUnique({ where: { slug } });
     if (!existing) throw new NotFoundException('Post not found');
     await this.prisma.post.delete({ where: { slug } });
+    await this.revalidation.trigger('blog', slug);
   }
 
   async updateThumbnail(slug: string, buffer: Buffer, filename: string, mimeType: string) {
