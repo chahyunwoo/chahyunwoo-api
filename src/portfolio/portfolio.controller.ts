@@ -33,6 +33,7 @@ import {
   UpdateProjectDto,
   UpdateSkillDto,
 } from './dto';
+import { ValidateLocalePipe } from './pipes/validate-locale.pipe';
 import { PortfolioService } from './portfolio.service';
 
 @ApiTags('portfolio')
@@ -51,19 +52,22 @@ export class PortfolioController {
   @Public()
   @Get('profile')
   @ApiNotFound('Profile')
-  getProfile(@Query() query: LocaleQueryDto) {
+  @ApiBadRequest('Unsupported locale')
+  getProfile(@Query(ValidateLocalePipe) query: LocaleQueryDto) {
     return this.portfolioService.getProfile(query.locale ?? 'ko');
   }
 
   @Public()
   @Get('experiences')
-  getExperiences(@Query() query: LocaleQueryDto) {
+  @ApiBadRequest('Unsupported locale')
+  getExperiences(@Query(ValidateLocalePipe) query: LocaleQueryDto) {
     return this.portfolioService.getExperiences(query.locale ?? 'ko');
   }
 
   @Public()
   @Get('projects')
-  getProjects(@Query() query: GetProjectsQueryDto) {
+  @ApiBadRequest('Unsupported locale')
+  getProjects(@Query(ValidateLocalePipe) query: GetProjectsQueryDto) {
     return this.portfolioService.getProjects(query.locale ?? 'ko', query.featured);
   }
 
@@ -75,7 +79,8 @@ export class PortfolioController {
 
   @Public()
   @Get('education')
-  getEducation(@Query() query: LocaleQueryDto) {
+  @ApiBadRequest('Unsupported locale')
+  getEducation(@Query(ValidateLocalePipe) query: LocaleQueryDto) {
     return this.portfolioService.getEducation(query.locale ?? 'ko');
   }
 
