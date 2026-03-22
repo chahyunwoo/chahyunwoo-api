@@ -17,9 +17,7 @@ import type {
   UpdateProjectDto,
   UpdateSkillDto,
 } from './dto';
-
-const CACHE_PREFIX = 'portfolio';
-const CACHE_TTL = 300_000; // 5 minutes
+import { DEFAULT_LOCALE, PORTFOLIO_CACHE_PREFIX, PORTFOLIO_CACHE_TTL } from './portfolio.constants';
 
 @Injectable()
 export class PortfolioService {
@@ -29,7 +27,7 @@ export class PortfolioService {
     private readonly storage: StorageService,
     @Inject(CACHE_MANAGER) rawCache: CacheStore,
   ) {
-    this.cache = new NamespacedCache(rawCache, CACHE_PREFIX);
+    this.cache = new NamespacedCache(rawCache, PORTFOLIO_CACHE_PREFIX);
   }
 
   private readonly logger = new Logger(PortfolioService.name);
@@ -77,6 +75,7 @@ export class PortfolioService {
     if (cached) return cached;
 
     const profile = await this.prisma.profile.findFirst({
+      orderBy: { id: 'asc' },
       include: { translations: { where: { locale } } },
     });
 
@@ -93,12 +92,12 @@ export class PortfolioService {
       introduction: t?.introduction ?? [],
     };
 
-    await this.cache.set(key, result, CACHE_TTL);
+    await this.cache.set(key, result, PORTFOLIO_CACHE_TTL);
     return result;
   }
 
   async updateProfile(dto: UpdateProfileDto) {
-    let profile = await this.prisma.profile.findFirst();
+    let profile = await this.prisma.profile.findFirst({ orderBy: { id: 'asc' } });
 
     if (!profile) {
       profile = await this.prisma.profile.create({
@@ -111,12 +110,8 @@ export class PortfolioService {
         },
       });
     } else {
-      if (dto.imageUrl !== undefined && profile.imageUrl) {
-        await this.storage.delete(profile.imageUrl);
-      }
-      if (dto.iconUrl !== undefined && profile.iconUrl) {
-        await this.storage.delete(profile.iconUrl);
-      }
+      const oldImageUrl = dto.imageUrl !== undefined ? profile.imageUrl : null;
+      const oldIconUrl = dto.iconUrl !== undefined ? profile.iconUrl : null;
 
       profile = await this.prisma.profile.update({
         where: { id: profile.id },
@@ -130,6 +125,18 @@ export class PortfolioService {
           }),
         },
       });
+
+      // DB 업데이트 성공 후 이전 파일 삭제 (R2 소속 URL만)
+      if (oldImageUrl) {
+        this.storage
+          .delete(oldImageUrl)
+          .catch(err => this.logger.warn('Old image cleanup failed', err));
+      }
+      if (oldIconUrl) {
+        this.storage
+          .delete(oldIconUrl)
+          .catch(err => this.logger.warn('Old icon cleanup failed', err));
+      }
     }
 
     if (dto.translations?.length) {
@@ -153,7 +160,7 @@ export class PortfolioService {
     this.revalidation
       .trigger('portfolio')
       .catch(err => this.logger.warn('revalidation failed', err));
-    return this.getProfile('ko');
+    return this.getProfile(DEFAULT_LOCALE);
   }
 
   // ─── Experiences ────────────────────────────────────────────────────────────
@@ -181,7 +188,7 @@ export class PortfolioService {
       };
     });
 
-    await this.cache.set(key, result, CACHE_TTL);
+    await this.cache.set(key, result, PORTFOLIO_CACHE_TTL);
     return result;
   }
 
@@ -281,7 +288,7 @@ export class PortfolioService {
       };
     });
 
-    await this.cache.set(key, result, CACHE_TTL);
+    await this.cache.set(key, result, PORTFOLIO_CACHE_TTL);
     return result;
   }
 
@@ -372,7 +379,7 @@ export class PortfolioService {
 
     const result = Object.entries(grouped).map(([category, items]) => ({ category, items }));
 
-    await this.cache.set(key, result, CACHE_TTL);
+    await this.cache.set(key, result, PORTFOLIO_CACHE_TTL);
     return result;
   }
 
@@ -441,7 +448,7 @@ export class PortfolioService {
       };
     });
 
-    await this.cache.set(key, result, CACHE_TTL);
+    await this.cache.set(key, result, PORTFOLIO_CACHE_TTL);
     return result;
   }
 

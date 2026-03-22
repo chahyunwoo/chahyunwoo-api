@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { Public } from '../common/decorators/public.decorator';
@@ -19,7 +20,14 @@ import { LoginDto } from './dto/login.dto';
 @ApiTags('auth')
 @Controller('api/auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  private readonly isProduction: boolean;
+
+  constructor(
+    private readonly authService: AuthService,
+    config: ConfigService,
+  ) {
+    this.isProduction = config.get('NODE_ENV') === 'production';
+  }
 
   @Public()
   @SkipApiKey()
@@ -87,7 +95,7 @@ export class AuthController {
   async extendSession(@Res() reply: FastifyReply) {
     reply.setCookie(SESSION_TIMEOUT_COOKIE, String(Date.now() + SESSION_TIMEOUT * 1000), {
       httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
+      secure: this.isProduction,
       sameSite: 'strict',
       path: '/',
       maxAge: SESSION_TIMEOUT,
@@ -122,11 +130,9 @@ export class AuthController {
   // ─── Private ──────────────────────────────────────────────────────────────
 
   private setTokenCookies(reply: FastifyReply, accessToken: string, refreshToken: string): void {
-    const isProduction = process.env.NODE_ENV === 'production';
-
     reply.setCookie(ACCESS_TOKEN_COOKIE, accessToken, {
       httpOnly: true,
-      secure: isProduction,
+      secure: this.isProduction,
       sameSite: 'strict',
       path: '/',
       maxAge: ACCESS_TOKEN_MAX_AGE,
@@ -134,7 +140,7 @@ export class AuthController {
 
     reply.setCookie(REFRESH_TOKEN_COOKIE, refreshToken, {
       httpOnly: true,
-      secure: isProduction,
+      secure: this.isProduction,
       sameSite: 'strict',
       path: '/api/auth',
       maxAge: REFRESH_TOKEN_MAX_AGE,
@@ -142,7 +148,7 @@ export class AuthController {
 
     reply.setCookie(SESSION_TIMEOUT_COOKIE, String(Date.now() + SESSION_TIMEOUT * 1000), {
       httpOnly: false,
-      secure: isProduction,
+      secure: this.isProduction,
       sameSite: 'strict',
       path: '/',
       maxAge: SESSION_TIMEOUT,

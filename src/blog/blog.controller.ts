@@ -175,7 +175,7 @@ export class BlogController {
     const buffer = await data.toBuffer();
 
     if (buffer.length > MAX_FILE_SIZE) {
-      throw new BadRequestException('File too large (max 10 MB)');
+      throw new BadRequestException(`File too large (max ${MAX_FILE_SIZE / 1024 / 1024} MB)`);
     }
 
     const { fileTypeFromBuffer } = await import('file-type');

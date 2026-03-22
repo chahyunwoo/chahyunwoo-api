@@ -145,27 +145,6 @@ export class AnalyticsService {
     return views.map(v => ({ referrer: v.referrer as string, count: v._count }));
   }
 
-  // ─── Popular Pages ────────────────────────────────────────────────────────
-
-  async getPopularPages(days?: number, appName?: string, limit?: number) {
-    const d = clamp(days, 30, MAX_DAYS);
-    const since = new Date();
-    since.setDate(since.getDate() - d);
-
-    const views = await this.prisma.pageView.groupBy({
-      by: ['path'],
-      where: {
-        createdAt: { gte: since },
-        ...(appName && { appName }),
-      },
-      _count: true,
-      orderBy: { _count: { path: 'desc' } },
-      take: clamp(limit, 20, MAX_LIMIT),
-    });
-
-    return views.map(v => ({ path: v.path, count: v._count }));
-  }
-
   // ─── System Status ────────────────────────────────────────────────────────
 
   async getSystemStatus() {
@@ -182,11 +161,14 @@ export class AnalyticsService {
       uptime: Math.floor(uptimeMs / 1000),
       uptimeFormatted: this.formatUptime(uptimeMs),
       database: dbStatus,
-      memory: {
-        heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-        heapTotal: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
-        rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
-      },
+      memory: (() => {
+        const mem = process.memoryUsage();
+        return {
+          heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
+          heapTotal: Math.round(mem.heapTotal / 1024 / 1024),
+          rss: Math.round(mem.rss / 1024 / 1024),
+        };
+      })(),
     };
   }
 

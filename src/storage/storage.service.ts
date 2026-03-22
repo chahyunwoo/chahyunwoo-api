@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   CopyObjectCommand,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -9,6 +10,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { BLOG_TEMP_PREFIX } from '../blog/blog.constants';
 
 @Injectable()
 export class StorageService {
@@ -86,16 +88,26 @@ export class StorageService {
       const response = await this.client.send(
         new ListObjectsV2Command({
           Bucket: this.bucket,
-          Prefix: 'blog/temp/',
+          Prefix: `${BLOG_TEMP_PREFIX}/`,
           ContinuationToken: continuationToken,
         }),
       );
 
+      const keysToDelete: { Key: string }[] = [];
       for (const obj of response.Contents ?? []) {
         if (obj.Key && obj.LastModified && obj.LastModified < cutoff) {
-          await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: obj.Key }));
-          deleted++;
+          keysToDelete.push({ Key: obj.Key });
         }
+      }
+
+      if (keysToDelete.length > 0) {
+        await this.client.send(
+          new DeleteObjectsCommand({
+            Bucket: this.bucket,
+            Delete: { Objects: keysToDelete },
+          }),
+        );
+        deleted += keysToDelete.length;
       }
 
       continuationToken = response.NextContinuationToken;
