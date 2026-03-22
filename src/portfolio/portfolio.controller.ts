@@ -25,13 +25,16 @@ import {
   CreateLocaleDto,
   CreateProjectDto,
   CreateSkillDto,
+  CreateWorkDto,
   GetProjectsQueryDto,
+  GetWorksQueryDto,
   LocaleQueryDto,
   UpdateEducationDto,
   UpdateExperienceDto,
   UpdateProfileDto,
   UpdateProjectDto,
   UpdateSkillDto,
+  UpdateWorkDto,
 } from './dto';
 import { ValidateLocalePipe } from './pipes/validate-locale.pipe';
 import { PortfolioService } from './portfolio.service';
@@ -80,6 +83,14 @@ export class PortfolioController {
   @Get('skills')
   getSkills() {
     return this.portfolioService.getSkills();
+  }
+
+  @Public()
+  @ApiSecurity('api-key')
+  @Get('works')
+  @ApiBadRequest('Unsupported locale')
+  getWorks(@Query(ValidateLocalePipe) query: GetWorksQueryDto) {
+    return this.portfolioService.getWorks(query.locale ?? 'ko', query.type);
   }
 
   @Public()
@@ -235,5 +246,34 @@ export class PortfolioController {
   @ApiNotFound('Education')
   deleteEducation(@Param('id', ParseIntPipe) id: number) {
     return this.portfolioService.deleteEducation(id);
+  }
+
+  @ApiBearerAuth()
+  @ApiCookieAuth()
+  @Post('works')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiUnauthorized()
+  @ApiBadRequest()
+  createWork(@Body() dto: CreateWorkDto) {
+    return this.portfolioService.createWork(dto);
+  }
+
+  @ApiBearerAuth()
+  @ApiCookieAuth()
+  @Put('works/:id')
+  @ApiUnauthorized()
+  @ApiNotFound('Work')
+  updateWork(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateWorkDto) {
+    return this.portfolioService.updateWork(id, dto);
+  }
+
+  @ApiBearerAuth()
+  @ApiCookieAuth()
+  @Delete('works/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiUnauthorized()
+  @ApiNotFound('Work')
+  deleteWork(@Param('id', ParseIntPipe) id: number) {
+    return this.portfolioService.deleteWork(id);
   }
 }
