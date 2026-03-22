@@ -1,8 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
-
-const SUPPORTED_LOCALES = ['ko', 'en', 'jp'] as const;
+import { SUPPORTED_LOCALES } from '../portfolio.constants';
 
 export class GetProjectsQueryDto {
   @ApiPropertyOptional({ default: 'ko', enum: SUPPORTED_LOCALES })

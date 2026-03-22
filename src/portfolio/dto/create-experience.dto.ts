@@ -12,11 +12,12 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { SUPPORTED_LOCALES } from '../portfolio.constants';
 
 class ExperienceTranslationDto {
-  @ApiProperty({ enum: ['ko', 'en', 'jp'] })
+  @ApiProperty({ enum: [...SUPPORTED_LOCALES] })
   @IsString()
-  @IsIn(['ko', 'en', 'jp'])
+  @IsIn([...SUPPORTED_LOCALES])
   locale: string;
 
   @ApiProperty()

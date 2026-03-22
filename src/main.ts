@@ -7,7 +7,6 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { AppModule } from './app.module';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -40,8 +39,6 @@ async function bootstrap() {
       transform: true,
     }),
   );
-
-  app.useGlobalFilters(new HttpExceptionFilter());
 
   if (config.get('NODE_ENV') !== 'production') {
     const swaggerConfig = new DocumentBuilder()

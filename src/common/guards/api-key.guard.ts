@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import {
   type CanActivate,
   type ExecutionContext,
@@ -44,7 +45,11 @@ export class ApiKeyGuard implements CanActivate {
     const apiKey = request.headers['x-api-key'];
     const expectedKey = this.config.getOrThrow<string>('API_KEY');
 
-    if (apiKey !== expectedKey) {
+    if (
+      typeof apiKey !== 'string' ||
+      apiKey.length !== expectedKey.length ||
+      !timingSafeEqual(Buffer.from(apiKey), Buffer.from(expectedKey))
+    ) {
       throw new UnauthorizedException('Invalid API key');
     }
 

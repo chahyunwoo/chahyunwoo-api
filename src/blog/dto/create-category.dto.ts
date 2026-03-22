@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { DEFAULT_CATEGORY_ICON } from '../blog.constants';
 
 export class CreateCategoryDto {
   @ApiProperty({ example: 'Frontend' })
@@ -12,7 +13,7 @@ export class CreateCategoryDto {
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  icon?: string = 'LayoutGrid';
+  icon?: string = DEFAULT_CATEGORY_ICON;
 
   @ApiPropertyOptional({ default: 0 })
   @IsOptional()

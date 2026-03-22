@@ -20,12 +20,8 @@ export class AuthService {
     const adminUsername = this.config.getOrThrow<string>('ADMIN_USERNAME');
     const adminPasswordHash = this.config.getOrThrow<string>('ADMIN_PASSWORD_HASH');
 
-    if (username !== adminUsername) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
     const isValid = await bcrypt.compare(password, adminPasswordHash);
-    if (!isValid) {
+    if (!isValid || username !== adminUsername) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -38,23 +34,25 @@ export class AuthService {
   async refresh(refreshToken: string, ipAddress?: string) {
     const tokenHash = this.hashToken(refreshToken);
 
-    const stored = await this.prisma.refreshToken.findUnique({ where: { tokenHash } });
+    // 트랜잭션으로 조회+삭제를 원자적으로 처리 (TOCTOU 방지)
+    const stored = await this.prisma.$transaction(async tx => {
+      const token = await tx.refreshToken.findUnique({ where: { tokenHash } });
+      if (!token) return null;
+      await tx.refreshToken.delete({ where: { id: token.id } });
+      return token;
+    });
+
     if (!stored) throw new UnauthorizedException('Invalid refresh token');
 
     if (stored.expiresAt < new Date()) {
-      await this.prisma.refreshToken.delete({ where: { id: stored.id } });
       throw new UnauthorizedException('Refresh token expired');
     }
 
-    // IP 변경 감지 → 로그 남기고 새 IP로 갱신
     if (stored.ipAddress && stored.ipAddress !== ipAddress) {
       this.logger.warn(
         `IP change detected for ${stored.username}: ${stored.ipAddress} → ${ipAddress}`,
       );
     }
-
-    // Token Rotation: 기존 폐기 + 새 발급
-    await this.prisma.refreshToken.delete({ where: { id: stored.id } });
 
     const accessToken = this.generateAccessToken(stored.username);
     const newRefreshToken = await this.createRefreshToken(stored.username, ipAddress);
@@ -109,7 +107,7 @@ export class AuthService {
     return true;
   }
 
-  revokeAllPreviewTokens(): void {
+  private revokeAllPreviewTokens(): void {
     this.previewTokens.clear();
   }
 

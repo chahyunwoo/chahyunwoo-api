@@ -3,11 +3,19 @@ import { ConflictException, Inject, Injectable, Logger, NotFoundException } from
 import type { Post, PostTag, Tag } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { AdminLogService } from '../analytics/admin-log.service';
+import { ADMIN_USERNAME } from '../auth/auth.constants';
 import { PrismaService } from '../prisma/prisma.service';
 import { RevalidationService } from '../revalidation/revalidation.service';
 import { StorageService } from '../storage/storage.service';
 import { type CacheStore, NamespacedCache } from '../types/cache-store';
-import { RECENT_DAYS, RELATED_POST_COUNT } from './blog.constants';
+import {
+  BLOG_CACHE_PREFIX,
+  BLOG_CACHE_TTL,
+  BLOG_TEMP_PREFIX,
+  DEFAULT_CATEGORY_ICON,
+  RECENT_DAYS,
+  RELATED_POST_COUNT,
+} from './blog.constants';
 import { extractDescription, generateSlug } from './blog.utils';
 import type { CreatePostDto } from './dto/create-post.dto';
 import type { PostQueryDto, SearchQueryDto, TagQueryDto } from './dto/post-query.dto';
@@ -16,9 +24,6 @@ import type { UpdatePostDto } from './dto/update-post.dto';
 type PostWithTags = Post & {
   postTags: Array<PostTag & { tag: Tag }>;
 };
-
-const CACHE_PREFIX = 'blog';
-const CACHE_TTL = 60_000; // 1 minute (블로그는 포트폴리오보다 자주 바뀜)
 
 @Injectable()
 export class BlogService {
@@ -29,7 +34,7 @@ export class BlogService {
     private readonly adminLog: AdminLogService,
     @Inject(CACHE_MANAGER) rawCache: CacheStore,
   ) {
-    this.cache = new NamespacedCache(rawCache, CACHE_PREFIX);
+    this.cache = new NamespacedCache(rawCache, BLOG_CACHE_PREFIX);
   }
 
   private readonly logger = new Logger(BlogService.name);
@@ -71,7 +76,7 @@ export class BlogService {
       totalPages: Math.ceil(total / limit),
     };
 
-    await this.cache.set(key, result, CACHE_TTL);
+    await this.cache.set(key, result, BLOG_CACHE_TTL);
     return result;
   }
 
@@ -99,7 +104,7 @@ export class BlogService {
     }
 
     const result = this.formatPost(post, true);
-    if (!isAdmin) await this.cache.set(key, result, CACHE_TTL);
+    if (!isAdmin) await this.cache.set(key, result, BLOG_CACHE_TTL);
     return result;
   }
 
@@ -195,7 +200,7 @@ export class BlogService {
     const result = categoryCounts
       .map(c => ({
         category: c.category as string,
-        icon: iconMap.get(c.category as string) ?? 'LayoutGrid',
+        icon: iconMap.get(c.category as string) ?? DEFAULT_CATEGORY_ICON,
         count: c._count,
         recent: recentSet.has(c.category),
         tags: Array.from(tagMap.get(c.category as string)?.values() ?? []).sort(
@@ -204,7 +209,7 @@ export class BlogService {
       }))
       .sort((a, b) => b.count - a.count);
 
-    await this.cache.set(key, result, CACHE_TTL);
+    await this.cache.set(key, result, BLOG_CACHE_TTL);
     return result;
   }
 
@@ -221,7 +226,7 @@ export class BlogService {
     });
 
     const result = (posts as PostWithTags[]).map(post => this.formatPost(post));
-    await this.cache.set(key, result, CACHE_TTL);
+    await this.cache.set(key, result, BLOG_CACHE_TTL);
     return result;
   }
 
@@ -245,7 +250,7 @@ export class BlogService {
       total,
     };
 
-    await this.cache.set(key, result, CACHE_TTL);
+    await this.cache.set(key, result, BLOG_CACHE_TTL);
     return result;
   }
 
@@ -292,20 +297,12 @@ export class BlogService {
     let recommended: ReturnType<typeof this.formatPost>[] = [];
 
     if (deficit > 0) {
-      const excludeIds = new Set([
-        post.id,
-        ...scored.slice(0, RELATED_POST_COUNT).map(s => s.post.id),
-      ]);
-
-      const count = await this.prisma.post.count({
-        where: { published: true, id: { notIn: [...excludeIds] } },
-      });
-      const randomSkip = Math.max(0, Math.floor(Math.random() * (count - deficit)));
+      const excludeIds = [post.id, ...scored.slice(0, RELATED_POST_COUNT).map(s => s.post.id)];
 
       const pool = (await this.prisma.post.findMany({
-        where: { published: true, id: { notIn: [...excludeIds] } },
+        where: { published: true, id: { notIn: excludeIds } },
         include: { postTags: { include: { tag: true } } },
-        skip: randomSkip,
+        orderBy: { createdAt: 'desc' },
         take: deficit,
       })) as PostWithTags[];
 
@@ -313,7 +310,7 @@ export class BlogService {
     }
 
     const result = { related, recommended };
-    await this.cache.set(key, result, CACHE_TTL);
+    await this.cache.set(key, result, BLOG_CACHE_TTL);
     return result;
   }
 
@@ -321,14 +318,21 @@ export class BlogService {
 
   async createCategory(dto: { name: string; icon?: string; sortOrder?: number }) {
     return this.prisma.category.create({
-      data: { name: dto.name, icon: dto.icon ?? 'LayoutGrid', sortOrder: dto.sortOrder ?? 0 },
+      data: {
+        name: dto.name,
+        icon: dto.icon ?? DEFAULT_CATEGORY_ICON,
+        sortOrder: dto.sortOrder ?? 0,
+      },
     });
   }
 
   async updateCategory(id: number, dto: { name?: string; icon?: string; sortOrder?: number }) {
     try {
-      const existing = await this.prisma.category.findUnique({ where: { id } });
-      if (!existing) throw new NotFoundException('Category not found');
+      // 이름 변경 시 기존 이름이 필요하므로 사전 조회 필요
+      const oldName =
+        dto.name !== undefined
+          ? (await this.prisma.category.findUnique({ where: { id }, select: { name: true } }))?.name
+          : undefined;
 
       const updated = await this.prisma.category.update({
         where: { id },
@@ -339,10 +343,9 @@ export class BlogService {
         },
       });
 
-      // 이름 변경 시 포스트의 category 문자열도 같이 업데이트
-      if (dto.name !== undefined && dto.name !== existing.name) {
+      if (dto.name !== undefined && oldName && dto.name !== oldName) {
         await this.prisma.post.updateMany({
-          where: { category: existing.name },
+          where: { category: oldName },
           data: { category: dto.name },
         });
         await this.cache.invalidate();
@@ -410,24 +413,16 @@ export class BlogService {
         })) as PostWithTags;
       } catch (moveError) {
         this.logger.error('Image finalization failed, rolling back post', moveError);
-        await this.prisma.post.delete({ where: { slug } }).catch(() => {});
+        await this.prisma.post
+          .delete({ where: { slug } })
+          .catch(deleteErr =>
+            this.logger.error('Rollback failed: post left with temp URLs', deleteErr),
+          );
         throw moveError;
       }
 
       const result = this.formatPost(updated, true);
-      await this.cache.invalidate();
-      this.revalidation
-        .trigger('blog', post.slug)
-        .catch(err => this.logger.warn('revalidation failed', err));
-      this.adminLog
-        .log({
-          action: 'create',
-          entity: 'post',
-          entityId: post.slug,
-          detail: post.title,
-          username: 'admin',
-        })
-        .catch(err => this.logger.warn('admin log failed', err));
+      await this.triggerPostSideEffects('create', post.slug, post.title);
       return result;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -463,38 +458,22 @@ export class BlogService {
       })) as PostWithTags;
 
       // DB 성공 후 temp 이미지 확정 경로로 이동
+      let updated = post;
       if (dto.content || dto.thumbnailUrl) {
         try {
           const finalized = await this.finalizeImages(slug, post.content, post.thumbnailUrl);
-          await this.prisma.post.update({
+          updated = (await this.prisma.post.update({
             where: { slug },
             data: { content: finalized.content, thumbnailUrl: finalized.thumbnailUrl },
-          });
+            include: { postTags: { include: { tag: true } } },
+          })) as PostWithTags;
         } catch (moveError) {
           this.logger.error('Image finalization failed during update', moveError);
-          // DB에는 temp URL이 남지만, temp 파일은 유지되므로 24시간 내 재시도 가능
         }
       }
 
-      const updated = (await this.prisma.post.findUniqueOrThrow({
-        where: { slug },
-        include: { postTags: { include: { tag: true } } },
-      })) as PostWithTags;
-
       const result = this.formatPost(updated, true);
-      await this.cache.invalidate();
-      this.revalidation
-        .trigger('blog', slug)
-        .catch(err => this.logger.warn('revalidation failed', err));
-      this.adminLog
-        .log({
-          action: 'update',
-          entity: 'post',
-          entityId: slug,
-          detail: updated.title,
-          username: 'admin',
-        })
-        .catch(err => this.logger.warn('admin log failed', err));
+      await this.triggerPostSideEffects('update', slug, updated.title);
       return result;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
@@ -516,13 +495,7 @@ export class BlogService {
       this.cleanupPostImages(post.content, post.thumbnailUrl).catch(err =>
         this.logger.warn('Post image cleanup failed', err),
       );
-      await this.cache.invalidate();
-      this.revalidation
-        .trigger('blog', slug)
-        .catch(err => this.logger.warn('revalidation failed', err));
-      this.adminLog
-        .log({ action: 'delete', entity: 'post', entityId: slug, username: 'admin' })
-        .catch(err => this.logger.warn('admin log failed', err));
+      await this.triggerPostSideEffects('delete', slug);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         throw new NotFoundException('Post not found');
@@ -532,7 +505,7 @@ export class BlogService {
   }
 
   async uploadTempImage(buffer: Buffer, filename: string, mimeType: string) {
-    const url = await this.storage.upload(buffer, filename, mimeType, 'blog/temp');
+    const url = await this.storage.upload(buffer, filename, mimeType, BLOG_TEMP_PREFIX);
     return { url };
   }
 
@@ -564,7 +537,7 @@ export class BlogService {
    */
   private async finalizeImages(slug: string, content: string, thumbnailUrl?: string | null) {
     const publicUrl = this.storage.getPublicUrl();
-    const tempPrefix = `${publicUrl}/blog/temp/`;
+    const tempPrefix = `${publicUrl}/${BLOG_TEMP_PREFIX}/`;
     let finalContent = content;
 
     // content 내 temp 이미지 이동
@@ -588,6 +561,22 @@ export class BlogService {
     }
 
     return { content: finalContent, thumbnailUrl: finalThumbnail };
+  }
+
+  private async triggerPostSideEffects(action: string, slug: string, title?: string) {
+    await this.cache.invalidate();
+    this.revalidation
+      .trigger('blog', slug)
+      .catch(err => this.logger.warn('revalidation failed', err));
+    this.adminLog
+      .log({
+        action,
+        entity: 'post',
+        entityId: slug,
+        ...(title && { detail: title }),
+        username: ADMIN_USERNAME,
+      })
+      .catch(err => this.logger.warn('admin log failed', err));
   }
 
   private async resolveTagConnections(tagNames: string[]) {
