@@ -22,10 +22,13 @@ export class ValidateLocalePipe implements PipeTransform {
     }
 
     if (!this.validCodes.has(locale)) {
-      this.validCodes = null;
       throw new BadRequestException(`Unsupported locale: ${locale}`);
     }
 
     return { ...value, locale };
+  }
+
+  invalidateCache(): void {
+    this.validCodes = null;
   }
 }

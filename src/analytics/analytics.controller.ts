@@ -17,6 +17,12 @@ import { AnalyticsService } from './analytics.service';
 import { TrackPageViewDto } from './dto/track-pageview.dto';
 import { PageViewService } from './page-view.service';
 
+function safeInt(value?: string): number | undefined {
+  if (!value) return undefined;
+  const n = Number.parseInt(value, 10);
+  return Number.isNaN(n) ? undefined : n;
+}
+
 @ApiTags('analytics')
 @Controller('api/analytics')
 export class AnalyticsController {
@@ -59,21 +65,21 @@ export class AnalyticsController {
   @ApiCookieAuth()
   @Get('popular-posts')
   getPopularPosts(@Query('limit') limit?: string) {
-    return this.analytics.getPopularPosts(limit ? Number(limit) : undefined);
+    return this.analytics.getPopularPosts(safeInt(limit));
   }
 
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Get('visitors')
   getVisitors(@Query('days') days?: string, @Query('app') app?: string) {
-    return this.analytics.getVisitorStats(days ? Number(days) : undefined, app);
+    return this.analytics.getVisitorStats(safeInt(days), app);
   }
 
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Get('referrers')
   getReferrers(@Query('days') days?: string, @Query('app') app?: string) {
-    return this.analytics.getReferrerStats(days ? Number(days) : undefined, app);
+    return this.analytics.getReferrerStats(safeInt(days), app);
   }
 
   @ApiBearerAuth()
@@ -87,6 +93,6 @@ export class AnalyticsController {
   @ApiCookieAuth()
   @Get('admin-logs')
   getAdminLogs(@Query('limit') limit?: string) {
-    return this.adminLog.getRecent(limit ? Number(limit) : undefined);
+    return this.adminLog.getRecent(safeInt(limit));
   }
 }

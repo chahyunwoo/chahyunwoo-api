@@ -1,9 +1,9 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Post, PostTag, Tag } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { AdminLogService } from '../analytics/admin-log.service';
-import { ADMIN_USERNAME } from '../auth/auth.constants';
 import { PrismaService } from '../prisma/prisma.service';
 import { RevalidationService } from '../revalidation/revalidation.service';
 import { StorageService } from '../storage/storage.service';
@@ -32,13 +32,16 @@ export class BlogService {
     private readonly storage: StorageService,
     private readonly revalidation: RevalidationService,
     private readonly adminLog: AdminLogService,
+    config: ConfigService,
     @Inject(CACHE_MANAGER) rawCache: CacheStore,
   ) {
     this.cache = new NamespacedCache(rawCache, BLOG_CACHE_PREFIX);
+    this.adminUsername = config.getOrThrow<string>('ADMIN_USERNAME');
   }
 
   private readonly logger = new Logger(BlogService.name);
   private readonly cache: NamespacedCache;
+  private readonly adminUsername: string;
 
   // ─── Read ─────────────────────────────────────────────────────────────────
 
@@ -328,26 +331,32 @@ export class BlogService {
 
   async updateCategory(id: number, dto: { name?: string; icon?: string; sortOrder?: number }) {
     try {
-      // 이름 변경 시 기존 이름이 필요하므로 사전 조회 필요
-      const oldName =
-        dto.name !== undefined
-          ? (await this.prisma.category.findUnique({ where: { id }, select: { name: true } }))?.name
-          : undefined;
+      const updated = await this.prisma.$transaction(async tx => {
+        const oldName =
+          dto.name !== undefined
+            ? (await tx.category.findUnique({ where: { id }, select: { name: true } }))?.name
+            : undefined;
 
-      const updated = await this.prisma.category.update({
-        where: { id },
-        data: {
-          ...(dto.name !== undefined && { name: dto.name }),
-          ...(dto.icon !== undefined && { icon: dto.icon }),
-          ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
-        },
+        const result = await tx.category.update({
+          where: { id },
+          data: {
+            ...(dto.name !== undefined && { name: dto.name }),
+            ...(dto.icon !== undefined && { icon: dto.icon }),
+            ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
+          },
+        });
+
+        if (dto.name !== undefined && oldName && dto.name !== oldName) {
+          await tx.post.updateMany({
+            where: { category: oldName },
+            data: { category: dto.name },
+          });
+        }
+
+        return result;
       });
 
-      if (dto.name !== undefined && oldName && dto.name !== oldName) {
-        await this.prisma.post.updateMany({
-          where: { category: oldName },
-          data: { category: dto.name },
-        });
+      if (dto.name !== undefined) {
         await this.cache.invalidate();
       }
 
@@ -574,7 +583,7 @@ export class BlogService {
         entity: 'post',
         entityId: slug,
         ...(title && { detail: title }),
-        username: ADMIN_USERNAME,
+        username: this.adminUsername,
       })
       .catch(err => this.logger.warn('admin log failed', err));
   }

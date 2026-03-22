@@ -10,5 +10,3 @@ export const REFRESH_TOKEN_EXPIRES_DAYS = 7;
 export const REFRESH_TOKEN_MAX_AGE = REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60; // seconds
 
 export const SESSION_TIMEOUT = 60 * 60; // 60 minutes (seconds)
-
-export const ADMIN_USERNAME = 'admin';

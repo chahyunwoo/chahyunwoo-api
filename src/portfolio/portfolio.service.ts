@@ -19,6 +19,7 @@ import type {
   UpdateSkillDto,
   UpdateWorkDto,
 } from './dto';
+import { ValidateLocalePipe } from './pipes/validate-locale.pipe';
 import { DEFAULT_LOCALE, PORTFOLIO_CACHE_PREFIX, PORTFOLIO_CACHE_TTL } from './portfolio.constants';
 import { generateGradientColors } from './portfolio.utils';
 
@@ -28,6 +29,7 @@ export class PortfolioService {
     private readonly prisma: PrismaService,
     private readonly revalidation: RevalidationService,
     private readonly storage: StorageService,
+    private readonly localePipe: ValidateLocalePipe,
     @Inject(CACHE_MANAGER) rawCache: CacheStore,
   ) {
     this.cache = new NamespacedCache(rawCache, PORTFOLIO_CACHE_PREFIX);
@@ -44,9 +46,11 @@ export class PortfolioService {
 
   async createLocale(dto: CreateLocaleDto) {
     try {
-      return await this.prisma.locale.create({
+      const result = await this.prisma.locale.create({
         data: { code: dto.code, label: dto.label },
       });
+      this.localePipe.invalidateCache();
+      return result;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('Locale already exists');
@@ -58,6 +62,7 @@ export class PortfolioService {
   async deleteLocale(id: number): Promise<void> {
     try {
       await this.prisma.locale.delete({ where: { id } });
+      this.localePipe.invalidateCache();
     } catch (error) {
       this.handleNotFound(error, 'Locale');
     }
