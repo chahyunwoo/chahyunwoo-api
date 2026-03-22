@@ -11,13 +11,16 @@ import type {
   CreateLocaleDto,
   CreateProjectDto,
   CreateSkillDto,
+  CreateWorkDto,
   UpdateEducationDto,
   UpdateExperienceDto,
   UpdateProfileDto,
   UpdateProjectDto,
   UpdateSkillDto,
+  UpdateWorkDto,
 } from './dto';
 import { DEFAULT_LOCALE, PORTFOLIO_CACHE_PREFIX, PORTFOLIO_CACHE_TTL } from './portfolio.constants';
+import { generateGradientColors } from './portfolio.utils';
 
 @Injectable()
 export class PortfolioService {
@@ -362,6 +365,128 @@ export class PortfolioService {
     }
   }
 
+  // ─── Works ──────────────────────────────────────────────────────────────────
+
+  async getWorks(locale: string, type?: string) {
+    const key = `works:${locale}:${type ?? 'all'}`;
+    const cached = await this.cache.get(key);
+    if (cached) return cached;
+
+    const works = await this.prisma.work.findMany({
+      where: type ? { type } : undefined,
+      include: { translations: { where: { locale } } },
+      orderBy: [{ type: 'asc' }, { sortOrder: 'asc' }],
+    });
+
+    const result = works.map(work => {
+      const t = work.translations[0];
+      return {
+        id: work.id,
+        type: work.type,
+        startDate: work.startDate,
+        endDate: work.endDate,
+        isCurrent: work.isCurrent,
+        techStack: work.techStack,
+        demoUrl: work.demoUrl,
+        repoUrl: work.repoUrl,
+        featured: work.featured,
+        gradientColors: generateGradientColors(t?.title ?? '', work.featured),
+        title: t?.title ?? '',
+        role: t?.role ?? null,
+        summary: t?.summary ?? '',
+        content: t?.content ?? '',
+        highlights: t?.highlights ?? [],
+      };
+    });
+
+    await this.cache.set(key, result, PORTFOLIO_CACHE_TTL);
+    return result;
+  }
+
+  async createWork(dto: CreateWorkDto) {
+    const result = await this.prisma.work.create({
+      data: {
+        type: dto.type,
+        sortOrder: dto.sortOrder ?? 0,
+        startDate: dto.startDate,
+        endDate: dto.endDate,
+        isCurrent: dto.isCurrent ?? false,
+        techStack: dto.techStack,
+        demoUrl: dto.demoUrl,
+        repoUrl: dto.repoUrl,
+        featured: dto.featured ?? false,
+        translations: {
+          create: dto.translations.map(t => ({
+            locale: t.locale,
+            title: t.title,
+            role: t.role,
+            summary: t.summary,
+            content: t.content,
+            highlights: t.highlights ?? [],
+          })),
+        },
+      },
+      include: { translations: true },
+    });
+    await this.cache.invalidate();
+    this.revalidation
+      .trigger('portfolio')
+      .catch(err => this.logger.warn('revalidation failed', err));
+    return result;
+  }
+
+  async updateWork(id: number, dto: UpdateWorkDto) {
+    try {
+      const result = await this.prisma.work.update({
+        where: { id },
+        data: {
+          ...(dto.type !== undefined && { type: dto.type }),
+          ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
+          ...(dto.startDate !== undefined && { startDate: dto.startDate }),
+          ...(dto.endDate !== undefined && { endDate: dto.endDate }),
+          ...(dto.isCurrent !== undefined && { isCurrent: dto.isCurrent }),
+          ...(dto.techStack !== undefined && { techStack: dto.techStack }),
+          ...(dto.demoUrl !== undefined && { demoUrl: dto.demoUrl }),
+          ...(dto.repoUrl !== undefined && { repoUrl: dto.repoUrl }),
+          ...(dto.featured !== undefined && { featured: dto.featured }),
+          ...(dto.translations && {
+            translations: {
+              deleteMany: {},
+              create: dto.translations.map(t => ({
+                locale: t.locale,
+                title: t.title,
+                role: t.role,
+                summary: t.summary,
+                content: t.content,
+                highlights: t.highlights ?? [],
+              })),
+            },
+          }),
+        },
+        include: { translations: true },
+      });
+      await this.cache.invalidate();
+      this.revalidation
+        .trigger('portfolio')
+        .catch(err => this.logger.warn('revalidation failed', err));
+      return result;
+    } catch (error) {
+      this.handleNotFound(error, 'Work');
+    }
+  }
+
+  async deleteWork(id: number): Promise<void> {
+    try {
+      await this.prisma.work.delete({ where: { id } });
+      await this.cache.invalidate();
+      this.revalidation
+        .trigger('portfolio')
+        .catch(err => this.logger.warn('revalidation failed', err));
+    } catch (error) {
+      this.handleNotFound(error, 'Work');
+    }
+  }
+
   // ─── Skills ─────────────────────────────────────────────────────────────────
 
   async getSkills() {
@@ -369,12 +494,21 @@ export class PortfolioService {
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
-    const skills = await this.prisma.skill.findMany({ orderBy: { sortOrder: 'asc' } });
+    const skills = await this.prisma.skill.findMany({
+      orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }],
+    });
 
-    const grouped: Record<string, string[]> = {};
+    const grouped: Record<
+      string,
+      { name: string; proficiency: number; description: string | null }[]
+    > = {};
     for (const skill of skills) {
       if (!grouped[skill.category]) grouped[skill.category] = [];
-      grouped[skill.category].push(skill.name);
+      grouped[skill.category].push({
+        name: skill.name,
+        proficiency: skill.proficiency,
+        description: skill.description,
+      });
     }
 
     const result = Object.entries(grouped).map(([category, items]) => ({ category, items }));
@@ -385,7 +519,13 @@ export class PortfolioService {
 
   async createSkill(dto: CreateSkillDto) {
     const result = await this.prisma.skill.create({
-      data: { category: dto.category, name: dto.name, sortOrder: dto.sortOrder ?? 0 },
+      data: {
+        category: dto.category,
+        name: dto.name,
+        sortOrder: dto.sortOrder ?? 0,
+        proficiency: dto.proficiency ?? 0,
+        description: dto.description,
+      },
     });
     await this.cache.invalidate();
     this.revalidation
@@ -402,6 +542,8 @@ export class PortfolioService {
           ...(dto.category !== undefined && { category: dto.category }),
           ...(dto.name !== undefined && { name: dto.name }),
           ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
+          ...(dto.proficiency !== undefined && { proficiency: dto.proficiency }),
+          ...(dto.description !== undefined && { description: dto.description }),
         },
       });
       await this.cache.invalidate();

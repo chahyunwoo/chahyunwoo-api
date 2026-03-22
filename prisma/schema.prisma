@@ -171,11 +171,48 @@ model ProjectTranslation {
   @@schema("portfolio")
 }
 
+model Work {
+  id           Int               @id @default(autoincrement())
+  type         String            @db.VarChar(20)
+  sortOrder    Int               @default(0) @map("sort_order")
+  startDate    String?           @map("start_date") @db.VarChar(50)
+  endDate      String?           @map("end_date") @db.VarChar(50)
+  isCurrent    Boolean           @default(false) @map("is_current")
+  techStack    Json              @default("[]") @map("tech_stack")
+  demoUrl      String?           @map("demo_url") @db.VarChar(1000)
+  repoUrl      String?           @map("repo_url") @db.VarChar(1000)
+  featured     Boolean           @default(false)
+  translations WorkTranslation[]
+
+  @@index([type, sortOrder])
+  @@index([featured])
+  @@map("works")
+  @@schema("portfolio")
+}
+
+model WorkTranslation {
+  id         Int      @id @default(autoincrement())
+  workId     Int      @map("work_id")
+  locale     String   @db.VarChar(5)
+  title      String   @db.VarChar(500)
+  role       String?  @db.VarChar(300)
+  summary    String   @db.Text
+  content    String   @db.Text
+  highlights String[] @db.Text
+  work       Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+
+  @@unique([workId, locale])
+  @@map("work_translations")
+  @@schema("portfolio")
+}
+
 model Skill {
-  id        Int    @id @default(autoincrement())
-  category  String @db.VarChar(100)
-  name      String @db.VarChar(200)
-  sortOrder Int    @default(0) @map("sort_order")
+  id          Int     @id @default(autoincrement())
+  category    String  @db.VarChar(100)
+  name        String  @db.VarChar(200)
+  sortOrder   Int     @default(0) @map("sort_order")
+  proficiency Int     @default(0)
+  description String? @db.Text
 
   @@index([category])
   @@index([sortOrder])
