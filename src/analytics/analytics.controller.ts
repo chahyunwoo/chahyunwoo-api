@@ -9,7 +9,7 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCookieAuth, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { Public } from '../common/decorators/public.decorator';
 import { AdminLogService } from './admin-log.service';
@@ -31,6 +31,7 @@ export class AnalyticsController {
   // ─── Public (프론트에서 호출) ──────────────────────────────────────────────
 
   @Public()
+  @ApiSecurity('api-key')
   @Post('pageview')
   @HttpCode(HttpStatus.NO_CONTENT)
   trackPageView(@Body() dto: TrackPageViewDto, @Req() req: FastifyRequest) {
@@ -48,36 +49,42 @@ export class AnalyticsController {
   // ─── Admin (JWT 필요) ──────────────────────────────────────────────────────
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Get('dashboard')
   getDashboard() {
     return this.analytics.getDashboardStats();
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Get('popular-posts')
   getPopularPosts(@Query('limit') limit?: string) {
     return this.analytics.getPopularPosts(limit ? Number(limit) : undefined);
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Get('visitors')
   getVisitors(@Query('days') days?: string, @Query('app') app?: string) {
     return this.analytics.getVisitorStats(days ? Number(days) : undefined, app);
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Get('referrers')
   getReferrers(@Query('days') days?: string, @Query('app') app?: string) {
     return this.analytics.getReferrerStats(days ? Number(days) : undefined, app);
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Get('system')
   getSystem() {
     return this.analytics.getSystemStatus();
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Get('admin-logs')
   getAdminLogs(@Query('limit') limit?: string) {
     return this.adminLog.getRecent(limit ? Number(limit) : undefined);

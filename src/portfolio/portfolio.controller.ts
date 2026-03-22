@@ -11,7 +11,7 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCookieAuth, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import {
   ApiBadRequest,
@@ -44,12 +44,14 @@ export class PortfolioController {
   // ─── Public ─────────────────────────────────────────────────────────────────
 
   @Public()
+  @ApiSecurity('api-key')
   @Get('locales')
   getLocales() {
     return this.portfolioService.getLocales();
   }
 
   @Public()
+  @ApiSecurity('api-key')
   @Get('profile')
   @ApiNotFound('Profile')
   @ApiBadRequest('Unsupported locale')
@@ -58,6 +60,7 @@ export class PortfolioController {
   }
 
   @Public()
+  @ApiSecurity('api-key')
   @Get('experiences')
   @ApiBadRequest('Unsupported locale')
   getExperiences(@Query(ValidateLocalePipe) query: LocaleQueryDto) {
@@ -65,6 +68,7 @@ export class PortfolioController {
   }
 
   @Public()
+  @ApiSecurity('api-key')
   @Get('projects')
   @ApiBadRequest('Unsupported locale')
   getProjects(@Query(ValidateLocalePipe) query: GetProjectsQueryDto) {
@@ -72,12 +76,14 @@ export class PortfolioController {
   }
 
   @Public()
+  @ApiSecurity('api-key')
   @Get('skills')
   getSkills() {
     return this.portfolioService.getSkills();
   }
 
   @Public()
+  @ApiSecurity('api-key')
   @Get('education')
   @ApiBadRequest('Unsupported locale')
   getEducation(@Query(ValidateLocalePipe) query: LocaleQueryDto) {
@@ -87,6 +93,7 @@ export class PortfolioController {
   // ─── Admin ──────────────────────────────────────────────────────────────────
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Post('locales')
   @HttpCode(HttpStatus.CREATED)
   @ApiUnauthorized()
@@ -97,6 +104,7 @@ export class PortfolioController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Delete('locales/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiUnauthorized()
@@ -106,6 +114,7 @@ export class PortfolioController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Put('profile')
   @ApiUnauthorized()
   updateProfile(@Body() dto: UpdateProfileDto) {
@@ -113,6 +122,7 @@ export class PortfolioController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Post('experiences')
   @HttpCode(HttpStatus.CREATED)
   @ApiUnauthorized()
@@ -122,6 +132,7 @@ export class PortfolioController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Put('experiences/:id')
   @ApiUnauthorized()
   @ApiNotFound('Experience')
@@ -130,6 +141,7 @@ export class PortfolioController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Delete('experiences/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiUnauthorized()
@@ -139,6 +151,7 @@ export class PortfolioController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Post('projects')
   @HttpCode(HttpStatus.CREATED)
   @ApiUnauthorized()
@@ -148,6 +161,7 @@ export class PortfolioController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Put('projects/:id')
   @ApiUnauthorized()
   @ApiNotFound('Project')
@@ -156,6 +170,7 @@ export class PortfolioController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Delete('projects/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiUnauthorized()
@@ -165,6 +180,7 @@ export class PortfolioController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Post('skills')
   @HttpCode(HttpStatus.CREATED)
   @ApiUnauthorized()
@@ -174,6 +190,7 @@ export class PortfolioController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Put('skills/:id')
   @ApiUnauthorized()
   @ApiNotFound('Skill')
@@ -182,6 +199,7 @@ export class PortfolioController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Delete('skills/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiUnauthorized()
@@ -191,6 +209,7 @@ export class PortfolioController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Post('education')
   @HttpCode(HttpStatus.CREATED)
   @ApiUnauthorized()
@@ -200,6 +219,7 @@ export class PortfolioController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Put('education/:id')
   @ApiUnauthorized()
   @ApiNotFound('Education')
@@ -208,6 +228,7 @@ export class PortfolioController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Delete('education/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiUnauthorized()
