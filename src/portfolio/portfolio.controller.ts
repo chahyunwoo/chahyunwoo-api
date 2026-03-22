@@ -13,6 +13,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiConsumes, ApiCookieAuth, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Public } from '../common/decorators/public.decorator';
 import {
   ApiBadRequest,
@@ -23,6 +24,7 @@ import {
 import { safeExtension, validateAndReadFile } from '../common/utils/file-validation.util';
 import type { MultipartRequest } from '../types/fastify.d';
 import {
+  CreateContactDto,
   CreateEducationDto,
   CreateExperienceDto,
   CreateLocaleDto,
@@ -348,5 +350,44 @@ export class PortfolioController {
   @ApiNotFound('Work')
   deleteWork(@Param('id', ParseIntPipe) id: number) {
     return this.portfolioService.deleteWork(id);
+  }
+
+  // ─── Contact ───────────────────────────────────────────────────────────────
+
+  @Public()
+  @ApiSecurity('api-key')
+  @Post('contact')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60_000, limit: 3 } })
+  @ApiBadRequest()
+  createContact(@Body() dto: CreateContactDto) {
+    return this.portfolioService.createContact(dto);
+  }
+
+  @ApiBearerAuth()
+  @ApiCookieAuth()
+  @Get('contacts')
+  @ApiUnauthorized()
+  getContacts(@Query('limit') limit?: string) {
+    return this.portfolioService.getContacts(limit ? Number.parseInt(limit, 10) : undefined);
+  }
+
+  @ApiBearerAuth()
+  @ApiCookieAuth()
+  @Put('contacts/:id/read')
+  @ApiUnauthorized()
+  @ApiNotFound('Contact message')
+  markContactRead(@Param('id', ParseIntPipe) id: number) {
+    return this.portfolioService.markContactRead(id);
+  }
+
+  @ApiBearerAuth()
+  @ApiCookieAuth()
+  @Delete('contacts/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiUnauthorized()
+  @ApiNotFound('Contact message')
+  deleteContact(@Param('id', ParseIntPipe) id: number) {
+    return this.portfolioService.deleteContact(id);
   }
 }

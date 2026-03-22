@@ -244,6 +244,21 @@ model EducationTranslation {
   @@schema("portfolio")
 }
 
+model ContactMessage {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  email     String   @db.VarChar(300)
+  subject   String?  @db.VarChar(200)
+  message   String   @db.Text
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([read])
+  @@map("contact_messages")
+  @@schema("portfolio")
+}
+
 // ─── Analytics ──────────────────────────────────────────────────────────────
 
 model PageView {

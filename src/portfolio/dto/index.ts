@@ -1,3 +1,4 @@
+export { CreateContactDto } from './create-contact.dto';
 export { CreateEducationDto } from './create-education.dto';
 export { CreateExperienceDto } from './create-experience.dto';
 export { CreateLocaleDto } from './create-locale.dto';
