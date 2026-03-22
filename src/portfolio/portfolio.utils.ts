@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 function hashToHue(title: string): number {
-  const hash = createHash('md5').update(title).digest('hex');
+  const hash = createHash('sha256').update(title).digest('hex');
   return Number.parseInt(hash.slice(0, 8), 16) % 360;
 }
 

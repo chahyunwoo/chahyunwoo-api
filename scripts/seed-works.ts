@@ -55,6 +55,11 @@ async function main() {
     if (fs.existsSync(workPath)) {
       const works: WorkJson[] = JSON.parse(fs.readFileSync(workPath, 'utf8'));
 
+      if (!Array.isArray(works) || works.length === 0) {
+        console.error('Invalid work.json: expected non-empty array');
+        return;
+      }
+
       await prisma.work.deleteMany();
 
       for (const work of works) {
@@ -91,7 +96,11 @@ async function main() {
     if (fs.existsSync(skillPath)) {
       const skills: SkillJson[] = JSON.parse(fs.readFileSync(skillPath, 'utf8'));
 
-      // 기존 스킬 삭제 후 새로 시드
+      if (!Array.isArray(skills) || skills.length === 0) {
+        console.error('Invalid skills.json: expected non-empty array');
+        return;
+      }
+
       await prisma.skill.deleteMany();
 
       for (const skill of skills) {
