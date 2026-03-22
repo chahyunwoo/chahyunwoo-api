@@ -368,8 +368,8 @@ export class PortfolioController {
   @ApiCookieAuth()
   @Get('contacts')
   @ApiUnauthorized()
-  getContacts(@Query('limit') limit?: string) {
-    return this.portfolioService.getContacts(limit ? Number.parseInt(limit, 10) : undefined);
+  getContacts(@Query('limit', new ParseIntPipe({ optional: true })) limit?: number) {
+    return this.portfolioService.getContacts(limit);
   }
 
   @ApiBearerAuth()
