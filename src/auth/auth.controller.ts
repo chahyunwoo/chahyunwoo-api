@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { Public } from '../common/decorators/public.decorator';
 import { SkipApiKey } from '../common/decorators/skip-api-key.decorator';
@@ -71,6 +71,7 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Post('logout-all')
   @HttpCode(HttpStatus.NO_CONTENT)
   async logoutAll(@Req() req: CookieRequest, @Res() reply: FastifyReply) {
@@ -80,6 +81,7 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Post('session/extend')
   @HttpCode(HttpStatus.OK)
   async extendSession(@Res() reply: FastifyReply) {
@@ -96,6 +98,7 @@ export class AuthController {
   // ─── Preview ──────────────────────────────────────────────────────────────
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Post('preview-token')
   @HttpCode(HttpStatus.OK)
   createPreviewToken() {

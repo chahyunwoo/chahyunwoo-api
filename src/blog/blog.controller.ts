@@ -14,7 +14,7 @@ import {
   Req,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiCookieAuth, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { AuthService } from '../auth/auth.service';
 import { Public } from '../common/decorators/public.decorator';
 import {
@@ -41,6 +41,7 @@ export class BlogController {
   ) {}
 
   @Public()
+  @ApiSecurity('api-key')
   @Get('posts/search')
   @ApiBadRequest('q must be at least 2 characters')
   search(@Query() query: SearchQueryDto) {
@@ -48,24 +49,28 @@ export class BlogController {
   }
 
   @Public()
+  @ApiSecurity('api-key')
   @Get('posts')
   findAll(@Query() query: PostQueryDto) {
     return this.blogService.findAll(query);
   }
 
   @Public()
+  @ApiSecurity('api-key')
   @Get('posts/recent')
   getRecentPosts(@Query() query: RecentQueryDto) {
     return this.blogService.getRecentPosts(query.limit);
   }
 
   @Public()
+  @ApiSecurity('api-key')
   @Get('categories')
   getCategories() {
     return this.blogService.getCategories();
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Post('categories')
   @HttpCode(HttpStatus.CREATED)
   createCategory(@Body() dto: CreateCategoryDto) {
@@ -73,12 +78,14 @@ export class BlogController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Put('categories/:id')
   updateCategory(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateCategoryDto) {
     return this.blogService.updateCategory(id, dto);
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Delete('categories/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   deleteCategory(@Param('id', ParseIntPipe) id: number) {
@@ -86,12 +93,14 @@ export class BlogController {
   }
 
   @Public()
+  @ApiSecurity('api-key')
   @Get('tags')
   getTags(@Query() query: TagQueryDto) {
     return this.blogService.getTags(query);
   }
 
   @Public()
+  @ApiSecurity('api-key')
   @Get('posts/:slug')
   @ApiNotFound('Post')
   findOne(@Param('slug') slug: string) {
@@ -99,6 +108,7 @@ export class BlogController {
   }
 
   @Public()
+  @ApiSecurity('api-key')
   @Get('posts/:slug/preview')
   @ApiNotFound('Post')
   @ApiUnauthorized()
@@ -110,6 +120,7 @@ export class BlogController {
   }
 
   @Public()
+  @ApiSecurity('api-key')
   @Get('posts/:slug/related')
   @ApiNotFound('Post')
   getRelatedPosts(@Param('slug') slug: string) {
@@ -117,6 +128,7 @@ export class BlogController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Post('posts')
   @HttpCode(HttpStatus.CREATED)
   @ApiUnauthorized()
@@ -127,6 +139,7 @@ export class BlogController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Put('posts/:slug')
   @ApiUnauthorized()
   @ApiNotFound('Post')
@@ -135,6 +148,7 @@ export class BlogController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Delete('posts/:slug')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiUnauthorized()
@@ -144,6 +158,7 @@ export class BlogController {
   }
 
   @ApiBearerAuth()
+  @ApiCookieAuth()
   @Post('images')
   @ApiConsumes('multipart/form-data')
   @ApiUnauthorized()

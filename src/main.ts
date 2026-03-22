@@ -49,6 +49,8 @@ async function bootstrap() {
       .setDescription('chahyunwoo.dev blog & portfolio API')
       .setVersion('1.0')
       .addBearerAuth()
+      .addCookieAuth('access_token')
+      .addApiKey({ type: 'apiKey', name: 'x-api-key', in: 'header' }, 'api-key')
       .build();
     const document = SwaggerModule.createDocument(app, swaggerConfig);
     SwaggerModule.setup('docs', app, document);
