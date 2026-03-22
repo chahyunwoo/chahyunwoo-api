@@ -6,6 +6,7 @@ import { RevalidationService } from '../revalidation/revalidation.service';
 import { StorageService } from '../storage/storage.service';
 import { type CacheStore, NamespacedCache } from '../types/cache-store';
 import type {
+  CreateContactDto,
   CreateEducationDto,
   CreateExperienceDto,
   CreateLocaleDto,
@@ -739,6 +740,46 @@ export class PortfolioService {
         .catch(err => this.logger.warn('revalidation failed', err));
     } catch (error) {
       this.handleNotFound(error, 'Education');
+    }
+  }
+
+  // ─── Contact ───────────────────────────────────────────────────────────────
+
+  async createContact(dto: CreateContactDto) {
+    await this.prisma.contactMessage.create({
+      data: {
+        name: dto.name,
+        email: dto.email,
+        subject: dto.subject ?? null,
+        message: dto.message,
+      },
+    });
+    return { success: true, message: 'Message sent successfully' };
+  }
+
+  async getContacts(limit = 20) {
+    return this.prisma.contactMessage.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(1, limit), 100),
+    });
+  }
+
+  async markContactRead(id: number) {
+    try {
+      return await this.prisma.contactMessage.update({
+        where: { id },
+        data: { read: true },
+      });
+    } catch (error) {
+      this.handleNotFound(error, 'Contact message');
+    }
+  }
+
+  async deleteContact(id: number): Promise<void> {
+    try {
+      await this.prisma.contactMessage.delete({ where: { id } });
+    } catch (error) {
+      this.handleNotFound(error, 'Contact message');
     }
   }
 }
