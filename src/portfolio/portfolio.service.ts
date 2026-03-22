@@ -171,6 +171,43 @@ export class PortfolioService {
     return this.getProfile(DEFAULT_LOCALE);
   }
 
+  async getProfileWithTranslations() {
+    const key = 'profile:all';
+    const cached = await this.cache.get(key);
+    if (cached) return cached;
+
+    const profile = await this.prisma.profile.findFirst({
+      orderBy: { id: 'asc' },
+      include: { translations: true },
+    });
+
+    if (!profile) throw new NotFoundException('Profile not found');
+
+    const result = {
+      name: profile.name,
+      location: profile.location,
+      imageUrl: profile.imageUrl,
+      iconUrl: profile.iconUrl,
+      socialLinks: profile.socialLinks,
+      translations: profile.translations.map(t => ({
+        locale: t.locale,
+        jobTitle: t.jobTitle,
+        introduction: t.introduction,
+      })),
+    };
+
+    await this.cache.set(key, result, PORTFOLIO_CACHE_TTL);
+    return result;
+  }
+
+  async uploadProfileImage(buffer: Buffer, filename: string, mimeType: string) {
+    return { url: await this.storage.upload(buffer, filename, mimeType, 'profile/image') };
+  }
+
+  async uploadProfileIcon(buffer: Buffer, filename: string, mimeType: string) {
+    return { url: await this.storage.upload(buffer, filename, mimeType, 'profile/icon') };
+  }
+
   // ─── Experiences ────────────────────────────────────────────────────────────
 
   async getExperiences(locale: string) {
@@ -198,6 +235,15 @@ export class PortfolioService {
 
     await this.cache.set(key, result, PORTFOLIO_CACHE_TTL);
     return result;
+  }
+
+  async getExperienceById(id: number) {
+    const experience = await this.prisma.experience.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
+    if (!experience) throw new NotFoundException('Experience not found');
+    return experience;
   }
 
   async createExperience(dto: CreateExperienceDto) {
@@ -298,6 +344,15 @@ export class PortfolioService {
 
     await this.cache.set(key, result, PORTFOLIO_CACHE_TTL);
     return result;
+  }
+
+  async getProjectById(id: number) {
+    const project = await this.prisma.project.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
+    if (!project) throw new NotFoundException('Project not found');
+    return project;
   }
 
   async createProject(dto: CreateProjectDto) {
@@ -406,6 +461,20 @@ export class PortfolioService {
 
     await this.cache.set(key, result, PORTFOLIO_CACHE_TTL);
     return result;
+  }
+
+  async getWorkById(id: number) {
+    const work = await this.prisma.work.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
+    if (!work) throw new NotFoundException('Work not found');
+
+    const t = work.translations.find(tr => tr.locale === DEFAULT_LOCALE) ?? work.translations[0];
+    return {
+      ...work,
+      gradientColors: generateGradientColors(t?.title ?? '', work.featured),
+    };
   }
 
   async createWork(dto: CreateWorkDto) {
@@ -597,6 +666,15 @@ export class PortfolioService {
 
     await this.cache.set(key, result, PORTFOLIO_CACHE_TTL);
     return result;
+  }
+
+  async getEducationById(id: number) {
+    const education = await this.prisma.education.findUnique({
+      where: { id },
+      include: { translations: true },
+    });
+    if (!education) throw new NotFoundException('Education not found');
+    return education;
   }
 
   async createEducation(dto: CreateEducationDto) {
