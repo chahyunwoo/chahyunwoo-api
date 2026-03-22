@@ -23,19 +23,7 @@ export function generateSlug(title: string): string {
   return `${base}-${suffix}`;
 }
 
-const MIME_TO_EXT: Record<string, string> = {
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/webp': '.webp',
-  'image/gif': '.gif',
-};
-
-/**
- * MIME 타입에서 안전한 확장자 추출
- */
-export function safeExtension(mimeType: string): string {
-  return MIME_TO_EXT[mimeType] ?? '.bin';
-}
+export { safeExtension } from '../common/utils/file-validation.util';
 
 /**
  * content 앞부분에서 description 자동 추출

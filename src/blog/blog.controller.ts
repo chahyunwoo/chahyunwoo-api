@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -23,10 +22,9 @@ import {
   ApiNotFound,
   ApiUnauthorized,
 } from '../common/swagger/error-responses';
+import { safeExtension, validateAndReadFile } from '../common/utils/file-validation.util';
 import type { MultipartRequest } from '../types/fastify.d';
-import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE } from './blog.constants';
 import { BlogService } from './blog.service';
-import { safeExtension } from './blog.utils';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreatePostDto } from './dto/create-post.dto';
 import { PostQueryDto, RecentQueryDto, SearchQueryDto, TagQueryDto } from './dto/post-query.dto';
@@ -164,26 +162,7 @@ export class BlogController {
   @ApiUnauthorized()
   @ApiBadRequest('No file provided or invalid file type')
   async uploadImage(@Req() request: MultipartRequest) {
-    const { buffer, mimeType } = await this.validateAndReadFile(request);
+    const { buffer, mimeType } = await validateAndReadFile(request);
     return this.blogService.uploadTempImage(buffer, `image${safeExtension(mimeType)}`, mimeType);
-  }
-
-  private async validateAndReadFile(request: MultipartRequest) {
-    const data = await request.file();
-    if (!data) throw new BadRequestException('No file provided');
-
-    const buffer = await data.toBuffer();
-
-    if (buffer.length > MAX_FILE_SIZE) {
-      throw new BadRequestException(`File too large (max ${MAX_FILE_SIZE / 1024 / 1024} MB)`);
-    }
-
-    const { fileTypeFromBuffer } = await import('file-type');
-    const detected = await fileTypeFromBuffer(buffer);
-    if (!detected || !ALLOWED_MIME_TYPES.has(detected.mime)) {
-      throw new BadRequestException('Only JPEG, PNG, WebP, GIF are allowed');
-    }
-
-    return { buffer, mimeType: detected.mime };
   }
 }

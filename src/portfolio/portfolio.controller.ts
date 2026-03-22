@@ -10,8 +10,9 @@ import {
   Post,
   Put,
   Query,
+  Req,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiCookieAuth, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiCookieAuth, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import {
   ApiBadRequest,
@@ -19,6 +20,8 @@ import {
   ApiNotFound,
   ApiUnauthorized,
 } from '../common/swagger/error-responses';
+import { safeExtension, validateAndReadFile } from '../common/utils/file-validation.util';
+import type { MultipartRequest } from '../types/fastify.d';
 import {
   CreateEducationDto,
   CreateExperienceDto,
@@ -64,6 +67,14 @@ export class PortfolioController {
 
   @Public()
   @ApiSecurity('api-key')
+  @Get('profile/all')
+  @ApiNotFound('Profile')
+  getProfileWithTranslations() {
+    return this.portfolioService.getProfileWithTranslations();
+  }
+
+  @Public()
+  @ApiSecurity('api-key')
   @Get('experiences')
   @ApiBadRequest('Unsupported locale')
   getExperiences(@Query(ValidateLocalePipe) query: LocaleQueryDto) {
@@ -91,6 +102,38 @@ export class PortfolioController {
   @ApiBadRequest('Unsupported locale')
   getWorks(@Query(ValidateLocalePipe) query: GetWorksQueryDto) {
     return this.portfolioService.getWorks(query.locale ?? 'ko', query.type);
+  }
+
+  @Public()
+  @ApiSecurity('api-key')
+  @Get('works/:id')
+  @ApiNotFound('Work')
+  getWorkById(@Param('id', ParseIntPipe) id: number) {
+    return this.portfolioService.getWorkById(id);
+  }
+
+  @Public()
+  @ApiSecurity('api-key')
+  @Get('experiences/:id')
+  @ApiNotFound('Experience')
+  getExperienceById(@Param('id', ParseIntPipe) id: number) {
+    return this.portfolioService.getExperienceById(id);
+  }
+
+  @Public()
+  @ApiSecurity('api-key')
+  @Get('projects/:id')
+  @ApiNotFound('Project')
+  getProjectById(@Param('id', ParseIntPipe) id: number) {
+    return this.portfolioService.getProjectById(id);
+  }
+
+  @Public()
+  @ApiSecurity('api-key')
+  @Get('education/:id')
+  @ApiNotFound('Education')
+  getEducationById(@Param('id', ParseIntPipe) id: number) {
+    return this.portfolioService.getEducationById(id);
   }
 
   @Public()
@@ -130,6 +173,36 @@ export class PortfolioController {
   @ApiUnauthorized()
   updateProfile(@Body() dto: UpdateProfileDto) {
     return this.portfolioService.updateProfile(dto);
+  }
+
+  @ApiBearerAuth()
+  @ApiCookieAuth()
+  @Post('profile/image')
+  @ApiConsumes('multipart/form-data')
+  @ApiUnauthorized()
+  @ApiBadRequest('No file provided or invalid file type')
+  async uploadProfileImage(@Req() request: MultipartRequest) {
+    const { buffer, mimeType } = await validateAndReadFile(request);
+    return this.portfolioService.uploadProfileImage(
+      buffer,
+      `image${safeExtension(mimeType)}`,
+      mimeType,
+    );
+  }
+
+  @ApiBearerAuth()
+  @ApiCookieAuth()
+  @Post('profile/icon')
+  @ApiConsumes('multipart/form-data')
+  @ApiUnauthorized()
+  @ApiBadRequest('No file provided or invalid file type')
+  async uploadProfileIcon(@Req() request: MultipartRequest) {
+    const { buffer, mimeType } = await validateAndReadFile(request);
+    return this.portfolioService.uploadProfileIcon(
+      buffer,
+      `icon${safeExtension(mimeType)}`,
+      mimeType,
+    );
   }
 
   @ApiBearerAuth()
