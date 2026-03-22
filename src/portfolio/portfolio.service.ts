@@ -574,11 +574,12 @@ export class PortfolioService {
 
     const grouped: Record<
       string,
-      { name: string; proficiency: number; description: string | null }[]
+      { id: number; name: string; proficiency: number; description: string | null }[]
     > = {};
     for (const skill of skills) {
       if (!grouped[skill.category]) grouped[skill.category] = [];
       grouped[skill.category].push({
+        id: skill.id,
         name: skill.name,
         proficiency: skill.proficiency,
         description: skill.description,
