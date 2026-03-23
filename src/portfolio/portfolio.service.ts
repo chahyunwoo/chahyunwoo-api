@@ -8,6 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { MailService } from '../common/mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RevalidationService } from '../revalidation/revalidation.service';
 import { StorageService } from '../storage/storage.service';
@@ -37,6 +38,7 @@ export class PortfolioService {
     private readonly prisma: PrismaService,
     private readonly revalidation: RevalidationService,
     private readonly storage: StorageService,
+    private readonly mail: MailService,
     private readonly localePipe: ValidateLocalePipe,
     @Inject(CACHE_MANAGER) rawCache: CacheStore,
   ) {
@@ -762,6 +764,11 @@ export class PortfolioService {
           message: dto.message,
         },
       });
+
+      this.mail
+        .sendContactNotification(dto)
+        .catch(err => this.logger.warn('Contact email notification failed', err));
+
       return { success: true, message: 'Message sent successfully' };
     } catch (error) {
       this.logger.error('Failed to save contact message', error);

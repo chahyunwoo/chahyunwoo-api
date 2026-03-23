@@ -18,6 +18,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
   ) {}
 
+  private static readonly TOTP_SETTING_KEY = 'totp_secret';
   private readonly twoFactorTokens = new Map<
     string,
     { username: string; expiresAt: number; attempts: number }
@@ -35,7 +36,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const totpSecret = this.config.get<string>('TOTP_SECRET');
+    const totpSecret = await this.getTotpSecret();
     if (totpSecret) {
       this.cleanup2faTokens();
       if (this.twoFactorTokens.size >= AuthService.MAX_2FA_TOKENS) {
@@ -70,9 +71,11 @@ export class AuthService {
       throw new UnauthorizedException('Too many failed attempts');
     }
 
-    const totpSecret = this.config.getOrThrow<string>('TOTP_SECRET');
-    const isValid = verifySync({ token: code, secret: totpSecret });
-    if (!isValid) {
+    const totpSecret = await this.getTotpSecret();
+    if (!totpSecret) throw new UnauthorizedException('2FA is not configured');
+
+    const isCodeValid = verifySync({ token: code, secret: totpSecret });
+    if (!isCodeValid) {
       pending.attempts++;
       throw new UnauthorizedException('Invalid two-factor code');
     }
@@ -86,7 +89,7 @@ export class AuthService {
   }
 
   async setupTwoFactor() {
-    const existing = this.config.get<string>('TOTP_SECRET');
+    const existing = await this.getTotpSecret();
     if (existing) {
       return { configured: true, message: '2FA is already configured' };
     }
@@ -96,7 +99,46 @@ export class AuthService {
     const uri = generateURI({ secret, label: adminUsername, issuer: 'chahyunwoo.dev' });
     const qrCode = await QRCode.toDataURL(uri);
 
+    await this.prisma.adminSetting.upsert({
+      where: { key: AuthService.TOTP_SETTING_KEY },
+      create: { key: AuthService.TOTP_SETTING_KEY, value: secret },
+      update: { value: secret },
+    });
+
     return { secret, qrCode, uri };
+  }
+
+  async getTwoFactorStatus() {
+    const secret = await this.getTotpSecret();
+    return { enabled: !!secret };
+  }
+
+  async disableTwoFactor() {
+    await this.prisma.adminSetting.upsert({
+      where: { key: AuthService.TOTP_SETTING_KEY },
+      create: { key: AuthService.TOTP_SETTING_KEY, value: null },
+      update: { value: null },
+    });
+    return { enabled: false };
+  }
+
+  async enableTwoFactor(code: string) {
+    const secret = await this.getTotpSecret();
+    if (!secret) {
+      throw new UnauthorizedException('2FA is not set up. Call /2fa/setup first.');
+    }
+    const isValid = verifySync({ token: code, secret });
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid code. 2FA not enabled.');
+    }
+    return { enabled: true };
+  }
+
+  private async getTotpSecret(): Promise<string | null> {
+    const setting = await this.prisma.adminSetting.findUnique({
+      where: { key: AuthService.TOTP_SETTING_KEY },
+    });
+    return setting?.value ?? null;
   }
 
   private cleanup2faTokens(): void {

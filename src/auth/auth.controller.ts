@@ -16,6 +16,7 @@ import {
   SESSION_TIMEOUT_COOKIE,
 } from './auth.constants';
 import { AuthService } from './auth.service';
+import { Enable2faDto } from './dto/enable-2fa.dto';
 import { LoginDto } from './dto/login.dto';
 import { Verify2faDto } from './dto/verify-2fa.dto';
 
@@ -73,11 +74,38 @@ export class AuthController {
 
   @ApiBearerAuth()
   @ApiCookieAuth()
+  @Get('2fa/status')
+  @ApiUnauthorized()
+  getTwoFactorStatus() {
+    return this.authService.getTwoFactorStatus();
+  }
+
+  @ApiBearerAuth()
+  @ApiCookieAuth()
   @Post('2fa/setup')
   @HttpCode(HttpStatus.OK)
   @ApiUnauthorized()
   setupTwoFactor() {
     return this.authService.setupTwoFactor();
+  }
+
+  @ApiBearerAuth()
+  @ApiCookieAuth()
+  @Post('2fa/disable')
+  @HttpCode(HttpStatus.OK)
+  @ApiUnauthorized()
+  disableTwoFactor() {
+    return this.authService.disableTwoFactor();
+  }
+
+  @ApiBearerAuth()
+  @ApiCookieAuth()
+  @Post('2fa/enable')
+  @HttpCode(HttpStatus.OK)
+  @ApiUnauthorized()
+  @ApiBadRequest()
+  enableTwoFactor(@Body() dto: Enable2faDto) {
+    return this.authService.enableTwoFactor(dto.code);
   }
 
   @Public()
