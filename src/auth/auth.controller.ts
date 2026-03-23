@@ -21,12 +21,14 @@ import { LoginDto } from './dto/login.dto';
 @Controller('api/auth')
 export class AuthController {
   private readonly isProduction: boolean;
+  private readonly cookieDomain: string | undefined;
 
   constructor(
     private readonly authService: AuthService,
     config: ConfigService,
   ) {
     this.isProduction = config.get('NODE_ENV') === 'production';
+    this.cookieDomain = config.get('COOKIE_DOMAIN');
   }
 
   @Public()
@@ -96,7 +98,8 @@ export class AuthController {
     reply.setCookie(SESSION_TIMEOUT_COOKIE, String(Date.now() + SESSION_TIMEOUT * 1000), {
       httpOnly: false,
       secure: this.isProduction,
-      sameSite: this.isProduction ? 'none' : 'strict',
+      sameSite: this.isProduction ? ('none' as const) : ('strict' as const),
+      ...(this.cookieDomain && { domain: this.cookieDomain }),
       path: '/',
       maxAge: SESSION_TIMEOUT,
     });
@@ -130,34 +133,38 @@ export class AuthController {
   // ─── Private ──────────────────────────────────────────────────────────────
 
   private setTokenCookies(reply: FastifyReply, accessToken: string, refreshToken: string): void {
-    reply.setCookie(ACCESS_TOKEN_COOKIE, accessToken, {
-      httpOnly: true,
+    const cookieBase = {
       secure: this.isProduction,
-      sameSite: this.isProduction ? 'none' : 'strict',
+      sameSite: this.isProduction ? ('none' as const) : ('strict' as const),
+      ...(this.cookieDomain && { domain: this.cookieDomain }),
+    };
+
+    reply.setCookie(ACCESS_TOKEN_COOKIE, accessToken, {
+      ...cookieBase,
+      httpOnly: true,
       path: '/',
       maxAge: ACCESS_TOKEN_MAX_AGE,
     });
 
     reply.setCookie(REFRESH_TOKEN_COOKIE, refreshToken, {
+      ...cookieBase,
       httpOnly: true,
-      secure: this.isProduction,
-      sameSite: this.isProduction ? 'none' : 'strict',
       path: '/api/auth',
       maxAge: REFRESH_TOKEN_MAX_AGE,
     });
 
     reply.setCookie(SESSION_TIMEOUT_COOKIE, String(Date.now() + SESSION_TIMEOUT * 1000), {
+      ...cookieBase,
       httpOnly: false,
-      secure: this.isProduction,
-      sameSite: this.isProduction ? 'none' : 'strict',
       path: '/',
       maxAge: SESSION_TIMEOUT,
     });
   }
 
   private clearTokenCookies(reply: FastifyReply): void {
-    reply.clearCookie(ACCESS_TOKEN_COOKIE, { path: '/' });
-    reply.clearCookie(REFRESH_TOKEN_COOKIE, { path: '/api/auth' });
-    reply.clearCookie(SESSION_TIMEOUT_COOKIE, { path: '/' });
+    const domainOpt = this.cookieDomain ? { domain: this.cookieDomain } : {};
+    reply.clearCookie(ACCESS_TOKEN_COOKIE, { path: '/', ...domainOpt });
+    reply.clearCookie(REFRESH_TOKEN_COOKIE, { path: '/api/auth', ...domainOpt });
+    reply.clearCookie(SESSION_TIMEOUT_COOKIE, { path: '/', ...domainOpt });
   }
 }
