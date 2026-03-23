@@ -8,6 +8,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { AuthModule } from './auth/auth.module';
 import { BlogModule } from './blog/blog.module';
 import { HttpModule } from './common/http.module';
+import { MailModule } from './common/mail/mail.module';
 import { HealthController } from './health.controller';
 import { PortfolioModule } from './portfolio/portfolio.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -28,6 +29,7 @@ import { StorageModule } from './storage/storage.module';
     BlogModule,
     PortfolioModule,
     HttpModule,
+    MailModule,
   ],
   controllers: [HealthController],
 })
