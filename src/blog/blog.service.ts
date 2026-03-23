@@ -16,7 +16,7 @@ import {
   RECENT_DAYS,
   RELATED_POST_COUNT,
 } from './blog.constants';
-import { extractDescription, generateSlug } from './blog.utils';
+import { calculateReadingTime, extractDescription, generateSlug } from './blog.utils';
 import type { CreatePostDto } from './dto/create-post.dto';
 import type { PostQueryDto, SearchQueryDto, TagQueryDto } from './dto/post-query.dto';
 import type { UpdatePostDto } from './dto/update-post.dto';
@@ -400,6 +400,7 @@ export class BlogService {
           thumbnailUrl: dto.thumbnailUrl,
           category: dto.category,
           published: dto.published ?? false,
+          readingTime: calculateReadingTime(dto.content),
           publishedAt: dto.publishedAt
             ? new Date(dto.publishedAt)
             : dto.published
@@ -450,7 +451,10 @@ export class BlogService {
         data: {
           ...(dto.title !== undefined && { title: dto.title }),
           ...(dto.description !== undefined && { description: dto.description }),
-          ...(dto.content !== undefined && { content: dto.content }),
+          ...(dto.content !== undefined && {
+            content: dto.content,
+            readingTime: calculateReadingTime(dto.content),
+          }),
           ...(dto.thumbnailUrl !== undefined && { thumbnailUrl: dto.thumbnailUrl }),
           ...(dto.category !== undefined && { category: dto.category }),
           ...(dto.published !== undefined && { published: dto.published }),
