@@ -96,7 +96,7 @@ export class AuthController {
     reply.setCookie(SESSION_TIMEOUT_COOKIE, String(Date.now() + SESSION_TIMEOUT * 1000), {
       httpOnly: false,
       secure: this.isProduction,
-      sameSite: 'strict',
+      sameSite: this.isProduction ? 'none' : 'strict',
       path: '/',
       maxAge: SESSION_TIMEOUT,
     });
@@ -133,7 +133,7 @@ export class AuthController {
     reply.setCookie(ACCESS_TOKEN_COOKIE, accessToken, {
       httpOnly: true,
       secure: this.isProduction,
-      sameSite: 'strict',
+      sameSite: this.isProduction ? 'none' : 'strict',
       path: '/',
       maxAge: ACCESS_TOKEN_MAX_AGE,
     });
@@ -141,7 +141,7 @@ export class AuthController {
     reply.setCookie(REFRESH_TOKEN_COOKIE, refreshToken, {
       httpOnly: true,
       secure: this.isProduction,
-      sameSite: 'strict',
+      sameSite: this.isProduction ? 'none' : 'strict',
       path: '/api/auth',
       maxAge: REFRESH_TOKEN_MAX_AGE,
     });
@@ -149,7 +149,7 @@ export class AuthController {
     reply.setCookie(SESSION_TIMEOUT_COOKIE, String(Date.now() + SESSION_TIMEOUT * 1000), {
       httpOnly: false,
       secure: this.isProduction,
-      sameSite: 'strict',
+      sameSite: this.isProduction ? 'none' : 'strict',
       path: '/',
       maxAge: SESSION_TIMEOUT,
     });
