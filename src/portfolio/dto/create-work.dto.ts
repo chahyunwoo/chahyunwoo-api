@@ -13,12 +13,10 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { SUPPORTED_LOCALES } from '../portfolio.constants';
 
 class WorkTranslationDto {
-  @ApiProperty({ enum: [...SUPPORTED_LOCALES] })
+  @ApiProperty()
   @IsString()
-  @IsIn([...SUPPORTED_LOCALES])
   locale: string;
 
   @ApiProperty()

@@ -17,10 +17,17 @@ import { AnalyticsService } from './analytics.service';
 import { TrackPageViewDto } from './dto/track-pageview.dto';
 import { PageViewService } from './page-view.service';
 
+const VALID_APP_NAMES = new Set(['blog', 'portfolio', 'admin']);
+
 function safeInt(value?: string): number | undefined {
   if (!value) return undefined;
   const n = Number.parseInt(value, 10);
   return Number.isNaN(n) ? undefined : n;
+}
+
+function safeAppName(value?: string): string | undefined {
+  if (!value) return undefined;
+  return VALID_APP_NAMES.has(value) ? value : undefined;
 }
 
 @ApiTags('analytics')
@@ -72,14 +79,14 @@ export class AnalyticsController {
   @ApiCookieAuth()
   @Get('visitors')
   getVisitors(@Query('days') days?: string, @Query('app') app?: string) {
-    return this.analytics.getVisitorStats(safeInt(days), app);
+    return this.analytics.getVisitorStats(safeInt(days), safeAppName(app));
   }
 
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Get('referrers')
   getReferrers(@Query('days') days?: string, @Query('app') app?: string) {
-    return this.analytics.getReferrerStats(safeInt(days), app);
+    return this.analytics.getReferrerStats(safeInt(days), safeAppName(app));
   }
 
   @ApiBearerAuth()

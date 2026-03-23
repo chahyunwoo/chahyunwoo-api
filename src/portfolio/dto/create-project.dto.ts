@@ -4,7 +4,6 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
-  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -13,12 +12,10 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { SUPPORTED_LOCALES } from '../portfolio.constants';
 
 class ProjectTranslationDto {
-  @ApiProperty({ enum: [...SUPPORTED_LOCALES] })
+  @ApiProperty()
   @IsString()
-  @IsIn([...SUPPORTED_LOCALES])
   locale: string;
 
   @ApiProperty()
