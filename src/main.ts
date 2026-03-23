@@ -11,7 +11,7 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: process.env.NODE_ENV !== 'production' }),
+    new FastifyAdapter({ logger: process.env.NODE_ENV !== 'production', trustProxy: true }),
   );
 
   await app.register(import('@fastify/cookie'));

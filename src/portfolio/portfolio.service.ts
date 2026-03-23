@@ -1,5 +1,12 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RevalidationService } from '../revalidation/revalidation.service';
@@ -746,15 +753,20 @@ export class PortfolioService {
   // ─── Contact ───────────────────────────────────────────────────────────────
 
   async createContact(dto: CreateContactDto) {
-    await this.prisma.contactMessage.create({
-      data: {
-        name: dto.name,
-        email: dto.email,
-        subject: dto.subject ?? null,
-        message: dto.message,
-      },
-    });
-    return { success: true, message: 'Message sent successfully' };
+    try {
+      await this.prisma.contactMessage.create({
+        data: {
+          name: dto.name,
+          email: dto.email,
+          subject: dto.subject ?? null,
+          message: dto.message,
+        },
+      });
+      return { success: true, message: 'Message sent successfully' };
+    } catch (error) {
+      this.logger.error('Failed to save contact message', error);
+      throw new InternalServerErrorException('Failed to send message');
+    }
   }
 
   async getContacts(limit = 20) {
