@@ -48,6 +48,7 @@ export class StorageService {
         Key: key,
         Body: buffer,
         ContentType: mimeType,
+        CacheControl: 'public, max-age=0, must-revalidate',
       }),
     );
 
@@ -63,6 +64,8 @@ export class StorageService {
         Bucket: this.bucket,
         CopySource: `${this.bucket}/${sourceKey}`,
         Key: destKey,
+        MetadataDirective: 'REPLACE',
+        CacheControl: 'public, max-age=0, must-revalidate',
       }),
     );
 
