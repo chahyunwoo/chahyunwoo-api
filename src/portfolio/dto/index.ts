@@ -1,12 +1,16 @@
+export { CreateContactDto } from './create-contact.dto';
 export { CreateEducationDto } from './create-education.dto';
 export { CreateExperienceDto } from './create-experience.dto';
 export { CreateLocaleDto } from './create-locale.dto';
 export { CreateProjectDto } from './create-project.dto';
 export { CreateSkillDto } from './create-skill.dto';
+export { CreateWorkDto } from './create-work.dto';
 export { GetProjectsQueryDto } from './get-projects-query.dto';
+export { GetWorksQueryDto } from './get-works-query.dto';
 export { LocaleQueryDto } from './locale-query.dto';
 export { UpdateEducationDto } from './update-education.dto';
 export { UpdateExperienceDto } from './update-experience.dto';
 export { UpdateProfileDto } from './update-profile.dto';
 export { UpdateProjectDto } from './update-project.dto';
 export { UpdateSkillDto } from './update-skill.dto';
+export { UpdateWorkDto } from './update-work.dto';

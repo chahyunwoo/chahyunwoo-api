@@ -4,7 +4,6 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
-  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -14,9 +13,8 @@ import {
 } from 'class-validator';
 
 class ExperienceTranslationDto {
-  @ApiProperty({ enum: ['ko', 'en', 'jp'] })
+  @ApiProperty()
   @IsString()
-  @IsIn(['ko', 'en', 'jp'])
   locale: string;
 
   @ApiProperty()

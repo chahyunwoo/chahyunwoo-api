@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import {
   type CanActivate,
   type ExecutionContext,
@@ -7,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import type { FastifyRequest } from 'fastify';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { SKIP_API_KEY } from '../decorators/skip-api-key.decorator';
 
 @Injectable()
@@ -24,16 +26,30 @@ export class ApiKeyGuard implements CanActivate {
 
     if (skipApiKey) return true;
 
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    // 공개 API → 반드시 API Key 검증
+    if (isPublic) {
+      return this.validateApiKey(context);
+    }
+
+    // 비공개 API → JWT 인증이 처리하므로 건너뜀
+    return true;
+  }
+
+  private validateApiKey(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<FastifyRequest>();
-
-    // JWT Bearer 토큰이 있으면 어드민 요청이므로 API Key 체크 건너뜀
-    const authHeader = request.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) return true;
-
     const apiKey = request.headers['x-api-key'];
     const expectedKey = this.config.getOrThrow<string>('API_KEY');
 
-    if (apiKey !== expectedKey) {
+    if (
+      typeof apiKey !== 'string' ||
+      apiKey.length !== expectedKey.length ||
+      !timingSafeEqual(Buffer.from(apiKey), Buffer.from(expectedKey))
+    ) {
       throw new UnauthorizedException('Invalid API key');
     }
 

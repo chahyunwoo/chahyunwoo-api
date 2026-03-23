@@ -1,14 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import {
-  IsArray,
-  IsIn,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  IsUrl,
-  ValidateNested,
-} from 'class-validator';
+import { IsArray, IsNotEmpty, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
 
 class SocialLinkDto {
   @ApiProperty()
@@ -27,9 +19,8 @@ class SocialLinkDto {
 }
 
 class ProfileTranslationDto {
-  @ApiProperty({ enum: ['ko', 'en', 'jp'] })
+  @ApiProperty()
   @IsString()
-  @IsIn(['ko', 'en', 'jp'])
   locale: string;
 
   @ApiProperty()

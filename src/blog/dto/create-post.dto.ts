@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
   IsBoolean,
+  IsDateString,
   IsOptional,
   IsString,
   Matches,
@@ -16,29 +17,17 @@ export class CreatePostDto {
   @MaxLength(500)
   title: string;
 
-  @ApiProperty({ example: 'nextjs-15-app-router', description: 'URL-safe slug' })
-  @IsString()
-  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
-    message: 'slug must be lowercase letters, numbers, and hyphens',
-  })
-  @MaxLength(500)
-  slug: string;
-
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: '미입력 시 제목에서 자동 생성' })
   @IsOptional()
   @IsString()
-  @MaxLength(500)
+  @MaxLength(200)
   description?: string;
 
   @ApiProperty({ description: 'MDX content' })
   @IsString()
   @MinLength(1)
+  @MaxLength(500_000)
   content: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  thumbnailUrl?: string;
 
   @ApiPropertyOptional({ example: 'Frontend' })
   @IsOptional()
@@ -46,10 +35,21 @@ export class CreatePostDto {
   @MaxLength(200)
   category?: string;
 
+  @ApiPropertyOptional({ description: '이미지 업로드 API에서 받은 URL' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^https?:\/\//, { message: 'thumbnailUrl must be a valid HTTP URL' })
+  thumbnailUrl?: string;
+
   @ApiPropertyOptional({ default: false })
   @IsOptional()
   @IsBoolean()
   published?: boolean = false;
+
+  @ApiPropertyOptional({ example: '2026-03-21', description: '발행일 (미입력 시 발행 시점 자동)' })
+  @IsOptional()
+  @IsDateString()
+  publishedAt?: string;
 
   @ApiPropertyOptional({ type: [String], example: ['React', 'TypeScript'] })
   @IsOptional()

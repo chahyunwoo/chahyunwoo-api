@@ -10,10 +10,10 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 @Module({
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: ApiKeyGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: AdminIpGuard },
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class HttpModule {}

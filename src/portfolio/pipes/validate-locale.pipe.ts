@@ -9,16 +9,26 @@ import { DEFAULT_LOCALE } from '../portfolio.constants';
 
 @Injectable()
 export class ValidateLocalePipe implements PipeTransform {
+  private validCodes: Set<string> | null = null;
+
   constructor(private readonly prisma: PrismaService) {}
 
   async transform(value: { locale?: string }, _metadata: ArgumentMetadata) {
     const locale = value?.locale ?? DEFAULT_LOCALE;
 
-    const exists = await this.prisma.locale.findUnique({ where: { code: locale } });
-    if (!exists) {
+    if (!this.validCodes) {
+      const locales = await this.prisma.locale.findMany({ select: { code: true } });
+      this.validCodes = new Set(locales.map(l => l.code));
+    }
+
+    if (!this.validCodes.has(locale)) {
       throw new BadRequestException(`Unsupported locale: ${locale}`);
     }
 
     return { ...value, locale };
+  }
+
+  invalidateCache(): void {
+    this.validCodes = null;
   }
 }

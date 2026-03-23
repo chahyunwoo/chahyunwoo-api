@@ -1,28 +1,29 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Post, PostTag, Tag } from '@prisma/client';
 import { Prisma } from '@prisma/client';
+import { AdminLogService } from '../analytics/admin-log.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RevalidationService } from '../revalidation/revalidation.service';
 import { StorageService } from '../storage/storage.service';
-import { RECENT_DAYS, RELATED_POST_COUNT } from './blog.constants';
+import { type CacheStore, NamespacedCache } from '../types/cache-store';
+import {
+  BLOG_CACHE_PREFIX,
+  BLOG_CACHE_TTL,
+  BLOG_TEMP_PREFIX,
+  DEFAULT_CATEGORY_ICON,
+  RECENT_DAYS,
+  RELATED_POST_COUNT,
+} from './blog.constants';
+import { extractDescription, generateSlug } from './blog.utils';
 import type { CreatePostDto } from './dto/create-post.dto';
 import type { PostQueryDto, SearchQueryDto, TagQueryDto } from './dto/post-query.dto';
 import type { UpdatePostDto } from './dto/update-post.dto';
 
-interface CacheStore {
-  get<T>(key: string): Promise<T | undefined>;
-  set<T>(key: string, value: T, ttl?: number): Promise<void>;
-  del(key: string): Promise<void>;
-  clear(): Promise<void>;
-}
-
 type PostWithTags = Post & {
   postTags: Array<PostTag & { tag: Tag }>;
 };
-
-const CACHE_PREFIX = 'blog';
-const CACHE_TTL = 60_000; // 1 minute (블로그는 포트폴리오보다 자주 바뀜)
 
 @Injectable()
 export class BlogService {
@@ -30,24 +31,23 @@ export class BlogService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly revalidation: RevalidationService,
-    @Inject(CACHE_MANAGER) private readonly cache: CacheStore,
-  ) {}
-
-  // ─── Cache Helpers ────────────────────────────────────────────────────────
-
-  private cacheKey(key: string): string {
-    return `${CACHE_PREFIX}:${key}`;
+    private readonly adminLog: AdminLogService,
+    config: ConfigService,
+    @Inject(CACHE_MANAGER) rawCache: CacheStore,
+  ) {
+    this.cache = new NamespacedCache(rawCache, BLOG_CACHE_PREFIX);
+    this.adminUsername = config.getOrThrow<string>('ADMIN_USERNAME');
   }
 
-  private async invalidateCache(): Promise<void> {
-    await this.cache.clear();
-  }
+  private readonly logger = new Logger(BlogService.name);
+  private readonly cache: NamespacedCache;
+  private readonly adminUsername: string;
 
   // ─── Read ─────────────────────────────────────────────────────────────────
 
   async findAll(query: PostQueryDto) {
     const { page = 1, limit = 10, category, tag } = query;
-    const key = this.cacheKey(`posts:${page}:${limit}:${category ?? ''}:${tag ?? ''}`);
+    const key = `posts:${page}:${limit}:${category ?? ''}:${tag ?? ''}`;
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
@@ -64,7 +64,7 @@ export class BlogService {
       this.prisma.post.findMany({
         where,
         include,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { publishedAt: 'desc' },
         skip,
         take: limit,
       }),
@@ -79,12 +79,12 @@ export class BlogService {
       totalPages: Math.ceil(total / limit),
     };
 
-    await this.cache.set(key, result, CACHE_TTL);
+    await this.cache.set(key, result, BLOG_CACHE_TTL);
     return result;
   }
 
   async findBySlug(slug: string, isAdmin = false) {
-    const key = this.cacheKey(`post:${slug}`);
+    const key = `post:${slug}`;
     if (!isAdmin) {
       const cached = await this.cache.get(key);
       if (cached) return cached;
@@ -99,8 +99,15 @@ export class BlogService {
       throw new NotFoundException('Post not found');
     }
 
+    // 조회수 증가 (fire-and-forget, 어드민 조회 제외)
+    if (!isAdmin) {
+      this.prisma.post
+        .update({ where: { slug }, data: { viewCount: { increment: 1 } } })
+        .catch(err => this.logger.warn('viewCount increment failed', err));
+    }
+
     const result = this.formatPost(post, true);
-    if (!isAdmin) await this.cache.set(key, result, CACHE_TTL);
+    if (!isAdmin) await this.cache.set(key, result, BLOG_CACHE_TTL);
     return result;
   }
 
@@ -144,7 +151,7 @@ export class BlogService {
   }
 
   async getCategories() {
-    const key = this.cacheKey('categories');
+    const key = 'categories';
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
@@ -152,7 +159,7 @@ export class BlogService {
     recentThreshold.setDate(recentThreshold.getDate() - RECENT_DAYS);
 
     // 카테고리별 카운트 + 최근 여부를 2개 쿼리로 분리 (메모리 집계 최소화)
-    const [categoryCounts, recentCategories, tagCounts] = await Promise.all([
+    const [categoryCounts, recentCategories, tagCounts, categoryMeta] = await Promise.all([
       this.prisma.post.groupBy({
         by: ['category'],
         where: { published: true, category: { not: null } },
@@ -170,9 +177,11 @@ export class BlogService {
           post: { select: { category: true } },
         },
       }),
+      this.prisma.category.findMany(),
     ]);
 
     const recentSet = new Set(recentCategories.map(r => r.category));
+    const iconMap = new Map(categoryMeta.map(c => [c.name, c.icon]));
 
     // 태그 카운트 집계
     const tagMap = new Map<string, Map<string, { name: string; slug: string; count: number }>>();
@@ -194,6 +203,7 @@ export class BlogService {
     const result = categoryCounts
       .map(c => ({
         category: c.category as string,
+        icon: iconMap.get(c.category as string) ?? DEFAULT_CATEGORY_ICON,
         count: c._count,
         recent: recentSet.has(c.category),
         tags: Array.from(tagMap.get(c.category as string)?.values() ?? []).sort(
@@ -202,30 +212,30 @@ export class BlogService {
       }))
       .sort((a, b) => b.count - a.count);
 
-    await this.cache.set(key, result, CACHE_TTL);
+    await this.cache.set(key, result, BLOG_CACHE_TTL);
     return result;
   }
 
   async getRecentPosts(limit = 5) {
-    const key = this.cacheKey(`recent:${limit}`);
+    const key = `recent:${limit}`;
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
     const posts = await this.prisma.post.findMany({
       where: { published: true },
       include: { postTags: { include: { tag: true } } },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { publishedAt: 'desc' },
       take: limit,
     });
 
     const result = (posts as PostWithTags[]).map(post => this.formatPost(post));
-    await this.cache.set(key, result, CACHE_TTL);
+    await this.cache.set(key, result, BLOG_CACHE_TTL);
     return result;
   }
 
   async getTags(query: TagQueryDto) {
     const { limit = 15 } = query;
-    const key = this.cacheKey(`tags:${limit}`);
+    const key = `tags:${limit}`;
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
@@ -243,12 +253,12 @@ export class BlogService {
       total,
     };
 
-    await this.cache.set(key, result, CACHE_TTL);
+    await this.cache.set(key, result, BLOG_CACHE_TTL);
     return result;
   }
 
   async getRelatedPosts(slug: string) {
-    const key = this.cacheKey(`related:${slug}`);
+    const key = `related:${slug}`;
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
@@ -290,20 +300,12 @@ export class BlogService {
     let recommended: ReturnType<typeof this.formatPost>[] = [];
 
     if (deficit > 0) {
-      const excludeIds = new Set([
-        post.id,
-        ...scored.slice(0, RELATED_POST_COUNT).map(s => s.post.id),
-      ]);
-
-      const count = await this.prisma.post.count({
-        where: { published: true, id: { notIn: [...excludeIds] } },
-      });
-      const randomSkip = Math.max(0, Math.floor(Math.random() * (count - deficit)));
+      const excludeIds = [post.id, ...scored.slice(0, RELATED_POST_COUNT).map(s => s.post.id)];
 
       const pool = (await this.prisma.post.findMany({
-        where: { published: true, id: { notIn: [...excludeIds] } },
+        where: { published: true, id: { notIn: excludeIds } },
         include: { postTags: { include: { tag: true } } },
-        skip: randomSkip,
+        orderBy: { createdAt: 'desc' },
         take: deficit,
       })) as PostWithTags[];
 
@@ -311,40 +313,138 @@ export class BlogService {
     }
 
     const result = { related, recommended };
-    await this.cache.set(key, result, CACHE_TTL);
+    await this.cache.set(key, result, BLOG_CACHE_TTL);
     return result;
+  }
+
+  // ─── Category CRUD ─────────────────────────────────────────────────────────
+
+  async createCategory(dto: { name: string; icon?: string; sortOrder?: number }) {
+    return this.prisma.category.create({
+      data: {
+        name: dto.name,
+        icon: dto.icon ?? DEFAULT_CATEGORY_ICON,
+        sortOrder: dto.sortOrder ?? 0,
+      },
+    });
+  }
+
+  async updateCategory(id: number, dto: { name?: string; icon?: string; sortOrder?: number }) {
+    try {
+      const updated = await this.prisma.$transaction(async tx => {
+        const oldName =
+          dto.name !== undefined
+            ? (await tx.category.findUnique({ where: { id }, select: { name: true } }))?.name
+            : undefined;
+
+        const result = await tx.category.update({
+          where: { id },
+          data: {
+            ...(dto.name !== undefined && { name: dto.name }),
+            ...(dto.icon !== undefined && { icon: dto.icon }),
+            ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
+          },
+        });
+
+        if (dto.name !== undefined && oldName && dto.name !== oldName) {
+          await tx.post.updateMany({
+            where: { category: oldName },
+            data: { category: dto.name },
+          });
+        }
+
+        return result;
+      });
+
+      if (dto.name !== undefined) {
+        await this.cache.invalidate();
+      }
+
+      return updated;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new NotFoundException('Category not found');
+      }
+      throw error;
+    }
+  }
+
+  async deleteCategory(id: number): Promise<void> {
+    await this.prisma.$transaction(async tx => {
+      const existing = await tx.category.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundException('Category not found');
+
+      const postCount = await tx.post.count({ where: { category: existing.name } });
+      if (postCount > 0) {
+        throw new ConflictException(`Cannot delete category: ${postCount} posts are using it`);
+      }
+
+      await tx.category.delete({ where: { id } });
+    });
   }
 
   // ─── Write ────────────────────────────────────────────────────────────────
 
   async create(dto: CreatePostDto) {
-    const existing = await this.prisma.post.findUnique({ where: { slug: dto.slug } });
-    if (existing) throw new ConflictException('Slug already exists');
+    const slug = generateSlug(dto.title);
+    const description = dto.description || extractDescription(dto.content);
 
-    const post = (await this.prisma.post.create({
-      data: {
-        title: dto.title,
-        slug: dto.slug,
-        description: dto.description,
-        content: dto.content,
-        thumbnailUrl: dto.thumbnailUrl,
-        category: dto.category,
-        published: dto.published ?? false,
-        postTags: dto.tags?.length
-          ? { create: await this.resolveTagConnections(dto.tags) }
-          : undefined,
-      },
-      include: { postTags: { include: { tag: true } } },
-    })) as PostWithTags;
+    try {
+      // DB에 먼저 저장 (temp URL 그대로)
+      const post = (await this.prisma.post.create({
+        data: {
+          title: dto.title,
+          slug,
+          description,
+          content: dto.content,
+          thumbnailUrl: dto.thumbnailUrl,
+          category: dto.category,
+          published: dto.published ?? false,
+          publishedAt: dto.publishedAt
+            ? new Date(dto.publishedAt)
+            : dto.published
+              ? new Date()
+              : null,
+          postTags: dto.tags?.length
+            ? { create: await this.resolveTagConnections(dto.tags) }
+            : undefined,
+        },
+        include: { postTags: { include: { tag: true } } },
+      })) as PostWithTags;
 
-    const result = this.formatPost(post, true);
-    await this.invalidateCache();
-    this.revalidation.trigger('blog', post.slug);
-    return result;
+      // DB 성공 후 temp 이미지를 확정 경로로 이동
+      let updated = post;
+      try {
+        const finalized = await this.finalizeImages(slug, post.content, post.thumbnailUrl);
+        updated = (await this.prisma.post.update({
+          where: { slug },
+          data: { content: finalized.content, thumbnailUrl: finalized.thumbnailUrl },
+          include: { postTags: { include: { tag: true } } },
+        })) as PostWithTags;
+      } catch (moveError) {
+        this.logger.error('Image finalization failed, rolling back post', moveError);
+        await this.prisma.post
+          .delete({ where: { slug } })
+          .catch(deleteErr =>
+            this.logger.error('Rollback failed: post left with temp URLs', deleteErr),
+          );
+        throw moveError;
+      }
+
+      const result = this.formatPost(updated, true);
+      await this.triggerPostSideEffects('create', post.slug, post.title);
+      return result;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('Slug collision. Please retry.');
+      }
+      throw error;
+    }
   }
 
   async update(slug: string, dto: UpdatePostDto) {
     try {
+      // DB에 먼저 저장 (temp URL 그대로)
       const post = (await this.prisma.post.update({
         where: { slug },
         data: {
@@ -354,6 +454,9 @@ export class BlogService {
           ...(dto.thumbnailUrl !== undefined && { thumbnailUrl: dto.thumbnailUrl }),
           ...(dto.category !== undefined && { category: dto.category }),
           ...(dto.published !== undefined && { published: dto.published }),
+          ...(dto.publishedAt !== undefined && { publishedAt: new Date(dto.publishedAt) }),
+          // published=true로 변경 시 publishedAt 자동 세팅
+          ...(dto.published === true && !dto.publishedAt && { publishedAt: new Date() }),
           ...(dto.tags !== undefined && {
             postTags: {
               deleteMany: {},
@@ -364,9 +467,23 @@ export class BlogService {
         include: { postTags: { include: { tag: true } } },
       })) as PostWithTags;
 
-      const result = this.formatPost(post, true);
-      await this.invalidateCache();
-      this.revalidation.trigger('blog', post.slug);
+      // DB 성공 후 temp 이미지 확정 경로로 이동
+      let updated = post;
+      if (dto.content || dto.thumbnailUrl) {
+        try {
+          const finalized = await this.finalizeImages(slug, post.content, post.thumbnailUrl);
+          updated = (await this.prisma.post.update({
+            where: { slug },
+            data: { content: finalized.content, thumbnailUrl: finalized.thumbnailUrl },
+            include: { postTags: { include: { tag: true } } },
+          })) as PostWithTags;
+        } catch (moveError) {
+          this.logger.error('Image finalization failed during update', moveError);
+        }
+      }
+
+      const result = this.formatPost(updated, true);
+      await this.triggerPostSideEffects('update', slug, updated.title);
       return result;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
@@ -378,9 +495,17 @@ export class BlogService {
 
   async remove(slug: string): Promise<void> {
     try {
+      // 삭제 전 포스트 데이터 가져와서 R2 파일 정리용
+      const post = await this.prisma.post.findUnique({ where: { slug } });
+      if (!post) throw new NotFoundException('Post not found');
+
       await this.prisma.post.delete({ where: { slug } });
-      await this.invalidateCache();
-      this.revalidation.trigger('blog', slug);
+
+      // R2 파일 정리 (fire-and-forget)
+      this.cleanupPostImages(post.content, post.thumbnailUrl).catch(err =>
+        this.logger.warn('Post image cleanup failed', err),
+      );
+      await this.triggerPostSideEffects('delete', slug);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         throw new NotFoundException('Post not found');
@@ -389,27 +514,80 @@ export class BlogService {
     }
   }
 
-  async updateThumbnail(slug: string, buffer: Buffer, filename: string, mimeType: string) {
-    const existing = await this.prisma.post.findUnique({ where: { slug } });
-    if (!existing) throw new NotFoundException('Post not found');
+  async uploadTempImage(buffer: Buffer, filename: string, mimeType: string) {
+    const url = await this.storage.upload(buffer, filename, mimeType, BLOG_TEMP_PREFIX);
+    return { url };
+  }
 
-    if (existing.thumbnailUrl) {
-      await this.storage.delete(existing.thumbnailUrl);
+  private async cleanupPostImages(content: string, thumbnailUrl: string | null): Promise<void> {
+    const publicUrl = this.storage.getPublicUrl();
+    const urlPattern = new RegExp(
+      `${publicUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/blog/[^"\\s)]+`,
+      'g',
+    );
+
+    // content 내 모든 R2 이미지 URL 삭제
+    const urls = content.match(urlPattern) ?? [];
+    for (const url of urls) {
+      await this.storage.delete(url).catch(() => {});
     }
 
-    const url = await this.storage.upload(buffer, filename, mimeType, 'blog/thumbnails');
-
-    const post = (await this.prisma.post.update({
-      where: { slug },
-      data: { thumbnailUrl: url },
-      include: { postTags: { include: { tag: true } } },
-    })) as PostWithTags;
-
-    await this.invalidateCache();
-    return this.formatPost(post, true);
+    // 썸네일 삭제
+    if (thumbnailUrl) {
+      await this.storage.delete(thumbnailUrl).catch(() => {});
+    }
   }
 
   // ─── Private ──────────────────────────────────────────────────────────────
+
+  /**
+   * content + thumbnailUrl에서 temp URL을 찾아서 확정 경로로 이동
+   * blog/temp/xxx.png → blog/posts/{slug}/xxx.png
+   * blog/temp/xxx.jpg (thumbnail) → blog/thumbnails/{slug}.ext
+   */
+  private async finalizeImages(slug: string, content: string, thumbnailUrl?: string | null) {
+    const publicUrl = this.storage.getPublicUrl();
+    const tempPrefix = `${publicUrl}/${BLOG_TEMP_PREFIX}/`;
+    let finalContent = content;
+
+    // content 내 temp 이미지 이동
+    const tempUrls =
+      content.match(
+        new RegExp(`${tempPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^"\\s)]+`, 'g'),
+      ) ?? [];
+    for (const tempUrl of tempUrls) {
+      const filename = tempUrl.slice(tempPrefix.length);
+      const destKey = `blog/posts/${slug}/${filename}`;
+      const newUrl = await this.storage.move(tempUrl, destKey);
+      finalContent = finalContent.replace(tempUrl, newUrl);
+    }
+
+    // 썸네일 temp → 확정 경로
+    let finalThumbnail = thumbnailUrl;
+    if (thumbnailUrl?.startsWith(tempPrefix)) {
+      const ext = thumbnailUrl.slice(thumbnailUrl.lastIndexOf('.'));
+      const destKey = `blog/thumbnails/${slug}${ext}`;
+      finalThumbnail = await this.storage.move(thumbnailUrl, destKey);
+    }
+
+    return { content: finalContent, thumbnailUrl: finalThumbnail };
+  }
+
+  private async triggerPostSideEffects(action: string, slug: string, title?: string) {
+    await this.cache.invalidate();
+    this.revalidation
+      .trigger('blog', slug)
+      .catch(err => this.logger.warn('revalidation failed', err));
+    this.adminLog
+      .log({
+        action,
+        entity: 'post',
+        entityId: slug,
+        ...(title && { detail: title }),
+        username: this.adminUsername,
+      })
+      .catch(err => this.logger.warn('admin log failed', err));
+  }
 
   private async resolveTagConnections(tagNames: string[]) {
     return Promise.all(

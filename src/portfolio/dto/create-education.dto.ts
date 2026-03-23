@@ -3,7 +3,6 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
-  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -13,9 +12,8 @@ import {
 } from 'class-validator';
 
 class EducationTranslationDto {
-  @ApiProperty({ enum: ['ko', 'en', 'jp'] })
+  @ApiProperty()
   @IsString()
-  @IsIn(['ko', 'en', 'jp'])
   locale: string;
 
   @ApiProperty()

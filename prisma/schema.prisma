@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["auth", "blog", "portfolio"]
+  schemas  = ["analytics", "auth", "blog", "portfolio"]
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -25,6 +25,17 @@ model RefreshToken {
 
 // ─── Blog ────────────────────────────────────────────────────────────────────
 
+model Category {
+  id        Int    @id @default(autoincrement())
+  name      String @unique @db.VarChar(200)
+  icon      String @default("LayoutGrid") @db.VarChar(100)
+  sortOrder Int    @default(0) @map("sort_order")
+
+  @@index([sortOrder])
+  @@map("categories")
+  @@schema("blog")
+}
+
 model Post {
   id           Int       @id @default(autoincrement())
   title        String    @db.VarChar(500)
@@ -34,11 +45,13 @@ model Post {
   thumbnailUrl String?   @map("thumbnail_url") @db.VarChar(1000)
   category     String?   @db.VarChar(200)
   published    Boolean   @default(false)
+  publishedAt  DateTime? @map("published_at") @db.Timestamptz(6)
+  viewCount    Int       @default(0) @map("view_count")
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   postTags     PostTag[]
 
-  @@index([published, createdAt(sort: Desc)])
+  @@index([published, publishedAt(sort: Desc)])
   @@index([category])
   @@map("posts")
   @@schema("blog")
@@ -158,11 +171,48 @@ model ProjectTranslation {
   @@schema("portfolio")
 }
 
+model Work {
+  id           Int               @id @default(autoincrement())
+  type         String            @db.VarChar(20)
+  sortOrder    Int               @default(0) @map("sort_order")
+  startDate    String?           @map("start_date") @db.VarChar(50)
+  endDate      String?           @map("end_date") @db.VarChar(50)
+  isCurrent    Boolean           @default(false) @map("is_current")
+  techStack    Json              @default("[]") @map("tech_stack")
+  demoUrl      String?           @map("demo_url") @db.VarChar(1000)
+  repoUrl      String?           @map("repo_url") @db.VarChar(1000)
+  featured     Boolean           @default(false)
+  translations WorkTranslation[]
+
+  @@index([type, sortOrder])
+  @@index([featured])
+  @@map("works")
+  @@schema("portfolio")
+}
+
+model WorkTranslation {
+  id         Int      @id @default(autoincrement())
+  workId     Int      @map("work_id")
+  locale     String   @db.VarChar(5)
+  title      String   @db.VarChar(500)
+  role       String?  @db.VarChar(300)
+  summary    String   @db.Text
+  content    String   @db.Text
+  highlights String[] @db.Text
+  work       Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+
+  @@unique([workId, locale])
+  @@map("work_translations")
+  @@schema("portfolio")
+}
+
 model Skill {
-  id        Int    @id @default(autoincrement())
-  category  String @db.VarChar(100)
-  name      String @db.VarChar(200)
-  sortOrder Int    @default(0) @map("sort_order")
+  id          Int     @id @default(autoincrement())
+  category    String  @db.VarChar(100)
+  name        String  @db.VarChar(200)
+  sortOrder   Int     @default(0) @map("sort_order")
+  proficiency Int     @default(0)
+  description String? @db.Text
 
   @@index([category])
   @@index([sortOrder])
@@ -192,4 +242,53 @@ model EducationTranslation {
   @@unique([educationId, locale])
   @@map("education_translations")
   @@schema("portfolio")
+}
+
+model ContactMessage {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  email     String   @db.VarChar(300)
+  subject   String?  @db.VarChar(200)
+  message   String   @db.Text
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([read])
+  @@map("contact_messages")
+  @@schema("portfolio")
+}
+
+// ─── Analytics ──────────────────────────────────────────────────────────────
+
+model PageView {
+  id        Int      @id @default(autoincrement())
+  path      String   @db.VarChar(500)
+  appName   String   @map("app_name") @db.VarChar(50)
+  referrer  String?  @db.VarChar(1000)
+  userAgent String?  @map("user_agent") @db.VarChar(1000)
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([appName, createdAt(sort: Desc)])
+  @@index([path])
+  @@index([createdAt(sort: Desc)])
+  @@map("page_views")
+  @@schema("analytics")
+}
+
+model AdminLog {
+  id        Int      @id @default(autoincrement())
+  action    String   @db.VarChar(50)
+  entity    String   @db.VarChar(50)
+  entityId  String?  @map("entity_id") @db.VarChar(100)
+  detail    String?  @db.Text
+  username  String   @db.VarChar(200)
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([entity])
+  @@map("admin_logs")
+  @@schema("analytics")
 }

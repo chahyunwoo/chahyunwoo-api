@@ -1,5 +1,6 @@
 # Environment
 .env
+.env.prod
 .env.local
 .env.*.local
 
@@ -27,3 +28,4 @@ Thumbs.db
 
 # Logs
 *.log
+temp/
