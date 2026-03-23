@@ -1,7 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
 import type { MultipartRequest } from '../../types/fastify.d';
 
-export const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+export const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/avif',
+]);
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
@@ -10,6 +16,7 @@ const MIME_TO_EXT: Record<string, string> = {
   'image/png': '.png',
   'image/webp': '.webp',
   'image/gif': '.gif',
+  'image/avif': '.avif',
 };
 
 export function safeExtension(mimeType: string): string {
@@ -29,7 +36,7 @@ export async function validateAndReadFile(request: MultipartRequest) {
   const { fileTypeFromBuffer } = await import('file-type');
   const detected = await fileTypeFromBuffer(buffer);
   if (!detected || !ALLOWED_MIME_TYPES.has(detected.mime)) {
-    throw new BadRequestException('Only JPEG, PNG, WebP, GIF are allowed');
+    throw new BadRequestException('Only JPEG, PNG, WebP, GIF, AVIF are allowed');
   }
 
   return { buffer, mimeType: detected.mime };
