@@ -55,7 +55,9 @@ prisma/
 - `GET /api/portfolio/education`
 
 ### 어드민 (JWT Bearer 필요)
-- `POST /api/auth/login`
+- `POST /api/auth/login` (2FA 활성화 시 → `{ requiresTwoFactor, twoFactorToken }`)
+- `POST /api/auth/2fa/verify` (twoFactorToken + TOTP 코드 → JWT 발급)
+- `POST /api/auth/2fa/setup` (QR 코드 + secret 반환, 어드민 전용)
 - `POST /api/blog/posts`
 - `PUT /api/blog/posts/:slug`
 - `DELETE /api/blog/posts/:slug`

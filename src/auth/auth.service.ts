@@ -3,6 +3,8 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import { generateSecret, generateURI, verifySync } from 'otplib';
+import * as QRCode from 'qrcode';
 import { PrismaService } from '../prisma/prisma.service';
 import { ACCESS_TOKEN_JWT_EXPIRES, REFRESH_TOKEN_EXPIRES_DAYS } from './auth.constants';
 
@@ -16,6 +18,14 @@ export class AuthService {
     private readonly prisma: PrismaService,
   ) {}
 
+  private readonly twoFactorTokens = new Map<
+    string,
+    { username: string; expiresAt: number; attempts: number }
+  >();
+  private static readonly TWO_FACTOR_TOKEN_TTL = 5 * 60 * 1000; // 5 minutes
+  private static readonly MAX_2FA_ATTEMPTS = 5;
+  private static readonly MAX_2FA_TOKENS = 10;
+
   async login(username: string, password: string, ipAddress?: string) {
     const adminUsername = this.config.getOrThrow<string>('ADMIN_USERNAME');
     const adminPasswordHash = this.config.getOrThrow<string>('ADMIN_PASSWORD_HASH');
@@ -25,10 +35,75 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    const totpSecret = this.config.get<string>('TOTP_SECRET');
+    if (totpSecret) {
+      this.cleanup2faTokens();
+      if (this.twoFactorTokens.size >= AuthService.MAX_2FA_TOKENS) {
+        const oldest = this.twoFactorTokens.keys().next().value;
+        if (oldest) this.twoFactorTokens.delete(oldest);
+      }
+
+      const token = randomBytes(32).toString('hex');
+      this.twoFactorTokens.set(token, {
+        username,
+        expiresAt: Date.now() + AuthService.TWO_FACTOR_TOKEN_TTL,
+        attempts: 0,
+      });
+      return { requiresTwoFactor: true, twoFactorToken: token };
+    }
+
     const accessToken = this.generateAccessToken(username);
     const refreshToken = await this.createRefreshToken(username, ipAddress);
 
     return { accessToken, refreshToken };
+  }
+
+  async verifyTwoFactor(twoFactorToken: string, code: string, ipAddress?: string) {
+    const pending = this.twoFactorTokens.get(twoFactorToken);
+    if (!pending || pending.expiresAt < Date.now()) {
+      this.twoFactorTokens.delete(twoFactorToken);
+      throw new UnauthorizedException('Invalid or expired two-factor token');
+    }
+
+    if (pending.attempts >= AuthService.MAX_2FA_ATTEMPTS) {
+      this.twoFactorTokens.delete(twoFactorToken);
+      throw new UnauthorizedException('Too many failed attempts');
+    }
+
+    const totpSecret = this.config.getOrThrow<string>('TOTP_SECRET');
+    const isValid = verifySync({ token: code, secret: totpSecret });
+    if (!isValid) {
+      pending.attempts++;
+      throw new UnauthorizedException('Invalid two-factor code');
+    }
+
+    this.twoFactorTokens.delete(twoFactorToken);
+
+    const accessToken = this.generateAccessToken(pending.username);
+    const refreshToken = await this.createRefreshToken(pending.username, ipAddress);
+
+    return { accessToken, refreshToken };
+  }
+
+  async setupTwoFactor() {
+    const existing = this.config.get<string>('TOTP_SECRET');
+    if (existing) {
+      return { configured: true, message: '2FA is already configured' };
+    }
+
+    const secret = generateSecret();
+    const adminUsername = this.config.getOrThrow<string>('ADMIN_USERNAME');
+    const uri = generateURI({ secret, label: adminUsername, issuer: 'chahyunwoo.dev' });
+    const qrCode = await QRCode.toDataURL(uri);
+
+    return { secret, qrCode, uri };
+  }
+
+  private cleanup2faTokens(): void {
+    const now = Date.now();
+    for (const [token, entry] of this.twoFactorTokens) {
+      if (entry.expiresAt < now) this.twoFactorTokens.delete(token);
+    }
   }
 
   async refresh(refreshToken: string, ipAddress?: string) {

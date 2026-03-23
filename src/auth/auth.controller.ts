@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { Public } from '../common/decorators/public.decorator';
 import { SkipApiKey } from '../common/decorators/skip-api-key.decorator';
@@ -16,6 +17,7 @@ import {
 } from './auth.constants';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { Verify2faDto } from './dto/verify-2fa.dto';
 
 @ApiTags('auth')
 @Controller('api/auth')
@@ -38,13 +40,44 @@ export class AuthController {
   @ApiUnauthorized()
   @ApiBadRequest()
   async login(@Body() dto: LoginDto, @Req() req: FastifyRequest, @Res() reply: FastifyReply) {
-    const { accessToken, refreshToken } = await this.authService.login(
-      dto.username,
-      dto.password,
+    const result = await this.authService.login(dto.username, dto.password, req.ip);
+
+    if ('requiresTwoFactor' in result) {
+      return reply.send(result);
+    }
+
+    this.setTokenCookies(reply, result.accessToken, result.refreshToken);
+    return reply.send({ message: 'Login successful' });
+  }
+
+  @Public()
+  @SkipApiKey()
+  @Post('2fa/verify')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @ApiUnauthorized()
+  @ApiBadRequest()
+  async verifyTwoFactor(
+    @Body() dto: Verify2faDto,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ) {
+    const { accessToken, refreshToken } = await this.authService.verifyTwoFactor(
+      dto.twoFactorToken,
+      dto.code,
       req.ip,
     );
     this.setTokenCookies(reply, accessToken, refreshToken);
     return reply.send({ message: 'Login successful' });
+  }
+
+  @ApiBearerAuth()
+  @ApiCookieAuth()
+  @Post('2fa/setup')
+  @HttpCode(HttpStatus.OK)
+  @ApiUnauthorized()
+  setupTwoFactor() {
+    return this.authService.setupTwoFactor();
   }
 
   @Public()
