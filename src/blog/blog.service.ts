@@ -370,16 +370,17 @@ export class BlogService {
   }
 
   async deleteCategory(id: number): Promise<void> {
-    const existing = await this.prisma.category.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Category not found');
+    await this.prisma.$transaction(async tx => {
+      const existing = await tx.category.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundException('Category not found');
 
-    // 해당 카테고리를 사용하는 포스트가 있으면 삭제 불가
-    const postCount = await this.prisma.post.count({ where: { category: existing.name } });
-    if (postCount > 0) {
-      throw new ConflictException(`Cannot delete category: ${postCount} posts are using it`);
-    }
+      const postCount = await tx.post.count({ where: { category: existing.name } });
+      if (postCount > 0) {
+        throw new ConflictException(`Cannot delete category: ${postCount} posts are using it`);
+      }
 
-    await this.prisma.category.delete({ where: { id } });
+      await tx.category.delete({ where: { id } });
+    });
   }
 
   // ─── Write ────────────────────────────────────────────────────────────────
