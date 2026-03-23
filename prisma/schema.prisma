@@ -56,6 +56,7 @@ model Post {
   category     String?   @db.VarChar(200)
   published    Boolean   @default(false)
   publishedAt  DateTime? @map("published_at") @db.Timestamptz(6)
+  readingTime  Int       @default(0) @map("reading_time")
   viewCount    Int       @default(0) @map("view_count")
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
