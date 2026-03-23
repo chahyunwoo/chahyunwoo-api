@@ -142,13 +142,13 @@ export class PortfolioService {
         },
       });
 
-      // DB 업데이트 성공 후 이전 파일 삭제 (R2 소속 URL만)
-      if (oldImageUrl) {
+      // DB 업데이트 성공 후 이전 파일 삭제 (새 URL과 다를 때만)
+      if (oldImageUrl && oldImageUrl !== dto.imageUrl) {
         this.storage
           .delete(oldImageUrl)
           .catch(err => this.logger.warn('Old image cleanup failed', err));
       }
-      if (oldIconUrl) {
+      if (oldIconUrl && oldIconUrl !== dto.iconUrl) {
         this.storage
           .delete(oldIconUrl)
           .catch(err => this.logger.warn('Old icon cleanup failed', err));
