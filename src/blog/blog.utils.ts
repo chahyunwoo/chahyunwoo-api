@@ -1,9 +1,8 @@
 import { randomBytes } from 'node:crypto';
-import { BadRequestException } from '@nestjs/common';
 
 /**
- * 한글/영어 제목에서 URL-safe slug 생성
- * 중복 방지를 위해 4자리 랜덤 suffix 추가
+ * 제목에서 URL-safe slug 생성
+ * 한글/영문/숫자 허용, 중복 방지 suffix 추가
  */
 export function generateSlug(title: string): string {
   const base = title
@@ -15,12 +14,8 @@ export function generateSlug(title: string): string {
     .replace(/^-|-$/g, '')
     .slice(0, 80);
 
-  if (!base) {
-    throw new BadRequestException('Title must contain at least one valid character for slug');
-  }
-
   const suffix = randomBytes(2).toString('hex');
-  return `${base}-${suffix}`;
+  return base ? `${base}-${suffix}` : suffix;
 }
 
 export { safeExtension } from '../common/utils/file-validation.util';
