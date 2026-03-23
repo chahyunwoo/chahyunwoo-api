@@ -756,6 +756,17 @@ export class PortfolioService {
 
   async createContact(dto: CreateContactDto) {
     try {
+      // 동일 이메일 10분 쿨다운
+      const recent = await this.prisma.contactMessage.findFirst({
+        where: {
+          email: dto.email,
+          createdAt: { gte: new Date(Date.now() - 10 * 60 * 1000) },
+        },
+      });
+      if (recent) {
+        return { success: true, message: 'Message sent successfully' };
+      }
+
       await this.prisma.contactMessage.create({
         data: {
           name: dto.name,
