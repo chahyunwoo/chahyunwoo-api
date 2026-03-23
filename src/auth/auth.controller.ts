@@ -38,6 +38,7 @@ export class AuthController {
   @SkipApiKey()
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @ApiUnauthorized()
   @ApiBadRequest()
   async login(@Body() dto: LoginDto, @Req() req: FastifyRequest, @Res() reply: FastifyReply) {
@@ -94,8 +95,9 @@ export class AuthController {
   @Post('2fa/disable')
   @HttpCode(HttpStatus.OK)
   @ApiUnauthorized()
-  disableTwoFactor() {
-    return this.authService.disableTwoFactor();
+  @ApiBadRequest()
+  disableTwoFactor(@Body() dto: Enable2faDto) {
+    return this.authService.disableTwoFactor(dto.code);
   }
 
   @ApiBearerAuth()

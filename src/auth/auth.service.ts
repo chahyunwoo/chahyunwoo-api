@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -11,14 +11,19 @@ import { ACCESS_TOKEN_JWT_EXPIRES, REFRESH_TOKEN_EXPIRES_DAYS } from './auth.con
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly encryptionKey: Buffer;
 
   constructor(
     private readonly config: ConfigService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
-  ) {}
+  ) {
+    const jwtSecret = config.getOrThrow<string>('JWT_SECRET');
+    this.encryptionKey = createHash('sha256').update(jwtSecret).digest();
+  }
 
-  private static readonly TOTP_SETTING_KEY = 'totp_secret';
+  private static readonly TOTP_ACTIVE_KEY = 'totp_secret';
+  private static readonly TOTP_PENDING_KEY = 'totp_secret_pending';
   private readonly twoFactorTokens = new Map<
     string,
     { username: string; expiresAt: number; attempts: number }
@@ -36,7 +41,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const totpSecret = await this.getTotpSecret();
+    const totpSecret = await this.getActiveTotpSecret();
     if (totpSecret) {
       this.cleanup2faTokens();
       if (this.twoFactorTokens.size >= AuthService.MAX_2FA_TOKENS) {
@@ -71,7 +76,7 @@ export class AuthService {
       throw new UnauthorizedException('Too many failed attempts');
     }
 
-    const totpSecret = await this.getTotpSecret();
+    const totpSecret = await this.getActiveTotpSecret();
     if (!totpSecret) throw new UnauthorizedException('2FA is not configured');
 
     const isCodeValid = verifySync({ token: code, secret: totpSecret });
@@ -89,7 +94,7 @@ export class AuthService {
   }
 
   async setupTwoFactor() {
-    const existing = await this.getTotpSecret();
+    const existing = await this.getActiveTotpSecret();
     if (existing) {
       return { configured: true, message: '2FA is already configured' };
     }
@@ -99,46 +104,98 @@ export class AuthService {
     const uri = generateURI({ secret, label: adminUsername, issuer: 'chahyunwoo.dev' });
     const qrCode = await QRCode.toDataURL(uri);
 
+    // pending에 저장 (enable에서 확정)
     await this.prisma.adminSetting.upsert({
-      where: { key: AuthService.TOTP_SETTING_KEY },
-      create: { key: AuthService.TOTP_SETTING_KEY, value: secret },
-      update: { value: secret },
+      where: { key: AuthService.TOTP_PENDING_KEY },
+      create: { key: AuthService.TOTP_PENDING_KEY, value: this.encrypt(secret) },
+      update: { value: this.encrypt(secret) },
     });
 
-    return { secret, qrCode, uri };
-  }
-
-  async getTwoFactorStatus() {
-    const secret = await this.getTotpSecret();
-    return { enabled: !!secret };
-  }
-
-  async disableTwoFactor() {
-    await this.prisma.adminSetting.upsert({
-      where: { key: AuthService.TOTP_SETTING_KEY },
-      create: { key: AuthService.TOTP_SETTING_KEY, value: null },
-      update: { value: null },
-    });
-    return { enabled: false };
+    return { qrCode, uri };
   }
 
   async enableTwoFactor(code: string) {
-    const secret = await this.getTotpSecret();
-    if (!secret) {
-      throw new UnauthorizedException('2FA is not set up. Call /2fa/setup first.');
+    // pending secret으로 코드 검증
+    const pendingSetting = await this.prisma.adminSetting.findUnique({
+      where: { key: AuthService.TOTP_PENDING_KEY },
+    });
+    const pendingSecret = pendingSetting?.value ? this.decrypt(pendingSetting.value) : null;
+
+    if (!pendingSecret) {
+      throw new UnauthorizedException('No pending 2FA setup. Call /2fa/setup first.');
     }
-    const isValid = verifySync({ token: code, secret });
+
+    const isValid = verifySync({ token: code, secret: pendingSecret });
     if (!isValid) {
-      throw new UnauthorizedException('Invalid code. 2FA not enabled.');
+      throw new UnauthorizedException('Invalid code');
     }
+
+    // pending → active로 승격
+    await this.prisma.$transaction([
+      this.prisma.adminSetting.upsert({
+        where: { key: AuthService.TOTP_ACTIVE_KEY },
+        create: { key: AuthService.TOTP_ACTIVE_KEY, value: this.encrypt(pendingSecret) },
+        update: { value: this.encrypt(pendingSecret) },
+      }),
+      this.prisma.adminSetting.delete({ where: { key: AuthService.TOTP_PENDING_KEY } }),
+    ]);
+
     return { enabled: true };
   }
 
-  private async getTotpSecret(): Promise<string | null> {
+  async disableTwoFactor(code: string) {
+    const secret = await this.getActiveTotpSecret();
+    if (!secret) {
+      return { enabled: false, message: '2FA is not enabled' };
+    }
+
+    const isValid = verifySync({ token: code, secret });
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid code');
+    }
+
+    await this.prisma.adminSetting
+      .delete({
+        where: { key: AuthService.TOTP_ACTIVE_KEY },
+      })
+      .catch(() => {});
+
+    return { enabled: false };
+  }
+
+  async getTwoFactorStatus() {
+    const secret = await this.getActiveTotpSecret();
+    return { enabled: !!secret };
+  }
+
+  // ─── 2FA Private ───────────────────────────────────────────────────────────
+
+  private async getActiveTotpSecret(): Promise<string | null> {
     const setting = await this.prisma.adminSetting.findUnique({
-      where: { key: AuthService.TOTP_SETTING_KEY },
+      where: { key: AuthService.TOTP_ACTIVE_KEY },
     });
-    return setting?.value ?? null;
+    if (!setting?.value) return null;
+    try {
+      return this.decrypt(setting.value);
+    } catch {
+      this.logger.error('Failed to decrypt TOTP secret');
+      return null;
+    }
+  }
+
+  private encrypt(text: string): string {
+    const iv = randomBytes(16);
+    const cipher = createCipheriv('aes-256-gcm', this.encryptionKey, iv);
+    const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    return `${iv.toString('hex')}:${tag.toString('hex')}:${encrypted.toString('hex')}`;
+  }
+
+  private decrypt(data: string): string {
+    const [ivHex, tagHex, encryptedHex] = data.split(':');
+    const decipher = createDecipheriv('aes-256-gcm', this.encryptionKey, Buffer.from(ivHex, 'hex'));
+    decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
+    return decipher.update(Buffer.from(encryptedHex, 'hex')) + decipher.final('utf8');
   }
 
   private cleanup2faTokens(): void {
