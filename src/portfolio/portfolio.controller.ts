@@ -358,7 +358,7 @@ export class PortfolioController {
   @ApiSecurity('api-key')
   @Post('contact')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { ttl: 600_000, limit: 1 } })
+  @Throttle({ default: { ttl: 60_000, limit: 2 } })
   @ApiBadRequest()
   createContact(@Body() dto: CreateContactDto) {
     return this.portfolioService.createContact(dto);
