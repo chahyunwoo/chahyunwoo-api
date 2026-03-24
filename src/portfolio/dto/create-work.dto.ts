@@ -6,7 +6,6 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsUrl,
@@ -14,38 +13,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-class WorkTranslationDto {
-  @ApiProperty()
-  @IsString()
-  locale: string;
-
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  title: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  role?: string;
-
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  summary: string;
-
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  content: string;
-
-  @ApiPropertyOptional({ type: [String] })
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  highlights?: string[] = [];
-}
+import { WorkTranslationDto } from './work-translation.dto';
 
 export class CreateWorkDto {
   @ApiProperty({ enum: ['business', 'personal'] })
