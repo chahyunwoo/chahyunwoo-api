@@ -69,7 +69,7 @@ export class PageViewService {
 
     const record = await this.prisma.pageView.create({
       data: {
-        path: dto.path,
+        path: decodeURIComponent(dto.path),
         appName: dto.appName,
         referrer: dto.referrer ?? null,
         userAgent: dto.userAgent ?? null,
