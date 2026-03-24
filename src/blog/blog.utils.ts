@@ -8,7 +8,7 @@ export function generateSlug(title: string): string {
   const base = title
     .toLowerCase()
     .trim()
-    .replace(/[^\w\s가-힣-]/g, '')
+    .replace(/[^\w\s가-힣ㄱ-ㅎㅏ-ㅣ-]/g, '')
     .replace(/[\s_]+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
@@ -17,8 +17,6 @@ export function generateSlug(title: string): string {
   const suffix = randomBytes(2).toString('hex');
   return base ? `${base}-${suffix}` : suffix;
 }
-
-export { safeExtension } from '../common/utils/file-validation.util';
 
 const KOREAN_CHARS_PER_MINUTE = 500;
 

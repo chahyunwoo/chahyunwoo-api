@@ -38,7 +38,9 @@ export class CreatePostDto {
   @ApiPropertyOptional({ description: '이미지 업로드 API에서 받은 URL' })
   @IsOptional()
   @IsString()
-  @Matches(/^https?:\/\//, { message: 'thumbnailUrl must be a valid HTTP URL' })
+  @Matches(/^https:\/\/assets\.chahyunwoo\.dev\//, {
+    message: 'thumbnailUrl must be from assets.chahyunwoo.dev',
+  })
   thumbnailUrl?: string;
 
   @ApiPropertyOptional({ default: false })

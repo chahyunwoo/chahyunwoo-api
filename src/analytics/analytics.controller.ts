@@ -14,21 +14,9 @@ import type { FastifyRequest } from 'fastify';
 import { Public } from '../common/decorators/public.decorator';
 import { AdminLogService } from './admin-log.service';
 import { AnalyticsService } from './analytics.service';
+import { safeAppName, safeInt } from './analytics.utils';
 import { TrackPageViewDto } from './dto/track-pageview.dto';
 import { PageViewService } from './page-view.service';
-
-const VALID_APP_NAMES = new Set(['blog', 'portfolio', 'admin']);
-
-function safeInt(value?: string): number | undefined {
-  if (!value) return undefined;
-  const n = Number.parseInt(value, 10);
-  return Number.isNaN(n) ? undefined : n;
-}
-
-function safeAppName(value?: string): string | undefined {
-  if (!value) return undefined;
-  return VALID_APP_NAMES.has(value) ? value : undefined;
-}
 
 @ApiTags('analytics')
 @Controller('api/analytics')

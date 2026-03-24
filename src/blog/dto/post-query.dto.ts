@@ -1,4 +1,4 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsNotEmpty, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
 
@@ -50,7 +50,7 @@ export class TagQueryDto {
 }
 
 export class SearchQueryDto {
-  @ApiPropertyOptional({ description: 'Search keyword' })
+  @ApiProperty({ description: 'Search keyword' })
   @IsString()
   @IsNotEmpty()
   @MinLength(2)

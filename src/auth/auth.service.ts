@@ -36,8 +36,11 @@ export class AuthService {
     const adminUsername = this.config.getOrThrow<string>('ADMIN_USERNAME');
     const adminPasswordHash = this.config.getOrThrow<string>('ADMIN_PASSWORD_HASH');
 
+    if (username !== adminUsername) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
     const isValid = await bcrypt.compare(password, adminPasswordHash);
-    if (!isValid || username !== adminUsername) {
+    if (!isValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -270,6 +273,16 @@ export class AuthService {
     this.previewTokens.set(token, Date.now() + AuthService.PREVIEW_TOKEN_TTL);
 
     return { token, expiresIn: 1800 };
+  }
+
+  isAuthenticated(token?: string): boolean {
+    if (!token) return false;
+    try {
+      this.jwtService.verify(token);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   verifyPreviewToken(token: string): boolean {

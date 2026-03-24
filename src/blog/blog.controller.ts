@@ -49,8 +49,9 @@ export class BlogController {
   @Public()
   @ApiSecurity('api-key')
   @Get('posts')
-  findAll(@Query() query: PostQueryDto) {
-    return this.blogService.findAll(query);
+  findAll(@Query() query: PostQueryDto, @Req() req: MultipartRequest) {
+    const isAdmin = this.authService.isAuthenticated(req.cookies?.access_token);
+    return this.blogService.findAll(query, isAdmin);
   }
 
   @Public()
@@ -101,8 +102,9 @@ export class BlogController {
   @ApiSecurity('api-key')
   @Get('posts/:slug')
   @ApiNotFound('Post')
-  findOne(@Param('slug') slug: string) {
-    return this.blogService.findBySlug(slug);
+  findOne(@Param('slug') slug: string, @Req() req: MultipartRequest) {
+    const isAdmin = this.authService.isAuthenticated(req.cookies?.access_token);
+    return this.blogService.findBySlug(slug, isAdmin);
   }
 
   @Public()

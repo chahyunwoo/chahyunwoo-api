@@ -45,15 +45,15 @@ export class BlogService {
 
   // ─── Read ─────────────────────────────────────────────────────────────────
 
-  async findAll(query: PostQueryDto) {
+  async findAll(query: PostQueryDto, isAdmin = false) {
     const { page = 1, limit = 10, category, tag } = query;
-    const key = `posts:${page}:${limit}:${category ?? ''}:${tag ?? ''}`;
+    const key = `posts:${page}:${limit}:${category ?? ''}:${tag ?? ''}:${isAdmin}`;
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
     const skip = (page - 1) * limit;
     const where = {
-      published: true,
+      ...(isAdmin ? {} : { published: true }),
       ...(category && { category }),
       ...(tag && { postTags: { some: { tag: { slug: tag } } } }),
     };
