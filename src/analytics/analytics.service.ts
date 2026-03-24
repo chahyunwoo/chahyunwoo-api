@@ -331,7 +331,7 @@ export class AnalyticsService {
       if (!visitor.country && v.country) visitor.country = v.country;
 
       visitor.visits.push({
-        path: v.path,
+        path: decodeURIComponent(v.path),
         referrer: v.referrer ? extractDomain(v.referrer) : null,
         visitedAt: v.createdAt,
       });
