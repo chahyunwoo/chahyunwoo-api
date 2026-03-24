@@ -386,7 +386,7 @@ export class BlogService {
   // ─── Write ────────────────────────────────────────────────────────────────
 
   async create(dto: CreatePostDto) {
-    const slug = generateSlug(dto.title);
+    const slug = generateSlug();
     const description = dto.description || extractDescription(dto.content);
 
     try {
@@ -547,7 +547,7 @@ export class BlogService {
   /**
    * content + thumbnailUrl에서 temp URL을 찾아서 확정 경로로 이동
    * blog/temp/xxx.png → blog/posts/{slug}/xxx.png
-   * blog/temp/xxx.jpg (thumbnail) → blog/thumbnails/{slug}.ext
+   * blog/temp/xxx.jpg (thumbnail) → blog/thumbnails/{nanoid}.ext
    */
   private async finalizeImages(slug: string, content: string, thumbnailUrl?: string | null) {
     const publicUrl = this.storage.getPublicUrl();
@@ -566,11 +566,11 @@ export class BlogService {
       finalContent = finalContent.replace(tempUrl, newUrl);
     }
 
-    // 썸네일 temp → 확정 경로
+    // 썸네일 temp → 확정 경로 (랜덤 ID로 저장)
     let finalThumbnail = thumbnailUrl;
     if (thumbnailUrl?.startsWith(tempPrefix)) {
       const ext = thumbnailUrl.slice(thumbnailUrl.lastIndexOf('.'));
-      const destKey = `blog/thumbnails/${slug}${ext}`;
+      const destKey = `blog/thumbnails/${generateSlug()}${ext}`;
       finalThumbnail = await this.storage.move(thumbnailUrl, destKey);
     }
 
