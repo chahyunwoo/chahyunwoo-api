@@ -581,7 +581,10 @@ export class BlogService {
     await this.cache.invalidate();
     this.revalidation
       .trigger('blog', slug)
-      .catch(err => this.logger.warn('revalidation failed', err));
+      .catch(err => this.logger.warn('blog revalidation failed', err));
+    this.revalidation
+      .trigger('portfolio', slug)
+      .catch(err => this.logger.warn('portfolio revalidation failed', err));
     this.adminLog
       .log({
         action,
