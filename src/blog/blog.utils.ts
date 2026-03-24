@@ -1,21 +1,10 @@
 import { randomBytes } from 'node:crypto';
 
 /**
- * 제목에서 URL-safe slug 생성
- * 한글/영문/숫자 허용, 중복 방지 suffix 추가
+ * nanoid 스타일 URL-safe slug 생성 (10자)
  */
-export function generateSlug(title: string): string {
-  const base = title
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s가-힣ㄱ-ㅎㅏ-ㅣ-]/g, '')
-    .replace(/[\s_]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 80);
-
-  const suffix = randomBytes(2).toString('hex');
-  return base ? `${base}-${suffix}` : suffix;
+export function generateSlug(): string {
+  return randomBytes(8).toString('base64url').slice(0, 10);
 }
 
 const KOREAN_CHARS_PER_MINUTE = 500;
