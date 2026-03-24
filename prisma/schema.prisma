@@ -279,11 +279,15 @@ model PageView {
   referrer  String?  @db.VarChar(1000)
   userAgent String?  @map("user_agent") @db.VarChar(1000)
   ipAddress String?  @map("ip_address") @db.VarChar(45)
+  city      String?  @db.VarChar(100)
+  country   String?  @db.VarChar(10)
+  isBot     Boolean  @default(false) @map("is_bot")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([appName, createdAt(sort: Desc)])
   @@index([path])
   @@index([createdAt(sort: Desc)])
+  @@index([ipAddress])
   @@map("page_views")
   @@schema("analytics")
 }

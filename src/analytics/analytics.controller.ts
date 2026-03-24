@@ -59,8 +59,8 @@ export class AnalyticsController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Get('popular-posts')
-  getPopularPosts(@Query('limit') limit?: string) {
-    return this.analytics.getPopularPosts(safeInt(limit));
+  getPopularPosts(@Query('limit') limit?: string, @Query('days') days?: string) {
+    return this.analytics.getPopularPosts(safeInt(limit), safeInt(days));
   }
 
   @ApiBearerAuth()
@@ -68,6 +68,13 @@ export class AnalyticsController {
   @Get('visitors')
   getVisitors(@Query('days') days?: string, @Query('app') app?: string) {
     return this.analytics.getVisitorStats(safeInt(days), safeAppName(app));
+  }
+
+  @ApiBearerAuth()
+  @ApiCookieAuth()
+  @Get('visitors/timeline')
+  getVisitorsTimeline(@Query('days') days?: string, @Query('app') app?: string) {
+    return this.analytics.getVisitorsTimeline(safeInt(days), safeAppName(app));
   }
 
   @ApiBearerAuth()
