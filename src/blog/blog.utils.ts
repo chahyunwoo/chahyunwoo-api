@@ -18,7 +18,6 @@ export function generateSlug(title: string): string {
   return base ? `${base}-${suffix}` : suffix;
 }
 
-
 const KOREAN_CHARS_PER_MINUTE = 500;
 
 function stripMarkdown(content: string): string {
