@@ -17,7 +17,7 @@ export class CreatePostDto {
   @MaxLength(500)
   title: string;
 
-  @ApiPropertyOptional({ description: '미입력 시 제목에서 자동 생성' })
+  @ApiPropertyOptional({ description: '미입력 시 content에서 자동 추출' })
   @IsOptional()
   @IsString()
   @MaxLength(200)
