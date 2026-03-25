@@ -346,7 +346,11 @@ export class AnalyticsService {
         totalViews: data.visits.length,
         visits: data.visits,
       }))
-      .sort((a, b) => b.totalViews - a.totalViews);
+      .sort((a, b) => {
+        const aLatest = a.visits[0]?.visitedAt ?? new Date(0);
+        const bLatest = b.visits[0]?.visitedAt ?? new Date(0);
+        return new Date(bLatest).getTime() - new Date(aLatest).getTime();
+      });
   }
 
   // ─── System Status ────────────────────────────────────────────────────────
