@@ -9,7 +9,7 @@
     "start:prod": "node dist/src/main",
     "lint": "biome check --write .",
     "lint:ci": "biome check .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json",
     "openapi:generate": "ts-node --transpile-only -P tsconfig.json scripts/generate-openapi.ts",
     "test": "jest",
     "test:cov": "jest --coverage",
