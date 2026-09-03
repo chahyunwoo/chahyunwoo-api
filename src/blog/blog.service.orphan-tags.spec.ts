@@ -22,7 +22,14 @@ import { BlogService } from './blog.service';
 describe('BlogService 고아 태그 정리', () => {
   function build(existingTagIds: number[]) {
     const deleteManyCalls: Array<Record<string, unknown>> = [];
-    const post = {
+    const post: {
+      id: number;
+      slug: string;
+      title: string;
+      content: string;
+      thumbnailUrl: string | null;
+      postTags: never[];
+    } = {
       id: 10,
       slug: 'target',
       title: '제목',
@@ -31,9 +38,15 @@ describe('BlogService 고아 태그 정리', () => {
       postTags: [],
     };
 
+    // update는 전달된 data를 반영해서 돌려준다. 고정값을 돌려주면 dto의 content가
+    // 반영되지 않아 finalizeImages가 temp URL을 못 보고, move가 호출조차 되지 않는다
+    // (앞단에 막혀 검사 대상에 닿지 못하는 형태).
     const prisma = {
       post: {
-        update: jest.fn(async () => post),
+        update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
+          if (typeof data.content === 'string') post.content = data.content;
+          return post;
+        }),
         delete: jest.fn(async () => post),
         findUnique: jest.fn(async () => post),
       },
@@ -121,6 +134,32 @@ describe('BlogService 고아 태그 정리', () => {
       await service.update('target', { tags: ['a'] } as never);
 
       expect(deps.deleteManyCalls).toHaveLength(0);
+    });
+
+    /**
+     * #109와 #110을 합칠 때 실제로 생긴 회귀를 고정한다.
+     *
+     * 이미지 확정 실패는 예외를 던진다(#110). 태그 정리가 그 뒤에 있으면
+     * 태그를 교체하면서 이미지 확정이 실패한 경우 정리가 건너뛰어져 고아 태그가
+     * 남는다. 두 정리는 서로 독립이므로 한쪽 실패가 다른 쪽을 막아선 안 된다.
+     */
+    it('이미지 확정이 실패해도 태그 정리는 수행된다', async () => {
+      const deps = build([1, 2]);
+      deps.storage.move.mockRejectedValue(new Error('R2 move failed'));
+      const service = await makeService(deps);
+
+      await expect(
+        service.update('target', {
+          tags: ['newTag'],
+          content: '![a](https://assets.example.test/blog/temp/a.png)',
+        } as never),
+      ).rejects.toThrow();
+
+      expect(deps.deleteManyCalls).toHaveLength(1);
+      expect(deps.deleteManyCalls[0]).toMatchObject({
+        id: { in: [1, 2] },
+        postTags: { none: {} },
+      });
     });
   });
 

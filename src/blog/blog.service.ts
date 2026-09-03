@@ -501,6 +501,13 @@ export class BlogService {
         include: { postTags: { include: { tag: true } } },
       })) as PostWithTags;
 
+      // 태그 정리는 이미지 확정보다 먼저 한다. 확정이 실패하면 아래에서 throw하므로,
+      // 뒤에 두면 태그를 교체하면서 이미지 확정이 실패한 경우 정리가 건너뛰어져
+      // 고아 태그가 남는다. 둘은 서로 독립된 정리 작업이다.
+      await this.deleteOrphanTags(previousTagIds).catch(err =>
+        this.logger.warn('orphan tag cleanup failed', err),
+      );
+
       // DB 성공 후 temp 이미지 확정 경로로 이동.
       //
       // 판정을 `dto.content || dto.thumbnailUrl`로 하면 안 된다 — 빈 문자열이 falsy라
@@ -528,10 +535,6 @@ export class BlogService {
           );
         }
       }
-
-      await this.deleteOrphanTags(previousTagIds).catch(err =>
-        this.logger.warn('orphan tag cleanup failed', err),
-      );
 
       const result = this.formatPost(updated, true);
       await this.triggerPostSideEffects('update', slug, updated.title);
