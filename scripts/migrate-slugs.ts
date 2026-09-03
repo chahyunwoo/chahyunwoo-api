@@ -27,7 +27,7 @@ async function main() {
       select: { id: true, slug: true, title: true },
     });
 
-    const koreanPosts = posts.filter((p) => /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(p.slug));
+    const koreanPosts = posts.filter(p => /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(p.slug));
 
     if (koreanPosts.length === 0) {
       console.log('No Korean slugs found. Nothing to migrate.');

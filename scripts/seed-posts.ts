@@ -267,7 +267,9 @@ async function main() {
       created++;
     }
 
-    console.log(`\nDone: ${created} created, ${skipped} skipped, ${totalImages} post images uploaded`);
+    console.log(
+      `\nDone: ${created} created, ${skipped} skipped, ${totalImages} post images uploaded`,
+    );
   } finally {
     await prisma.$disconnect();
   }

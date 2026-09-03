@@ -44,7 +44,7 @@
     }
   },
   "files": {
-    "includes": ["src/**", "*.json", "*.ts", "!openapi.json"],
+    "includes": ["src/**", "scripts/**", "*.json", "*.ts", "!openapi.json"],
     "ignoreUnknown": true
   }
 }
