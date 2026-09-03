@@ -9,7 +9,7 @@
     "start:prod": "node dist/src/main",
     "lint": "biome check --write .",
     "lint:ci": "biome check .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json",
     "test": "jest --passWithNoTests",
     "test:cov": "jest --coverage --passWithNoTests",
     "db:generate": "prisma generate",
