@@ -445,6 +445,18 @@ export class BlogService {
 
   async update(slug: string, dto: UpdatePostDto) {
     try {
+      // 태그를 교체하면 기존 연결이 끊긴다. 끊긴 뒤에는 어떤 태그였는지 알 수 없으므로
+      // 교체 전에 후보 id를 확보한다.
+      const previousTagIds =
+        dto.tags !== undefined
+          ? (
+              await this.prisma.postTag.findMany({
+                where: { post: { slug } },
+                select: { tagId: true },
+              })
+            ).map(pt => pt.tagId)
+          : [];
+
       // DB에 먼저 저장 (temp URL 그대로)
       const post = (await this.prisma.post.update({
         where: { slug },
@@ -486,6 +498,10 @@ export class BlogService {
         }
       }
 
+      await this.deleteOrphanTags(previousTagIds).catch(err =>
+        this.logger.warn('orphan tag cleanup failed', err),
+      );
+
       const result = this.formatPost(updated, true);
       await this.triggerPostSideEffects('update', slug, updated.title);
       return result;
@@ -503,7 +519,20 @@ export class BlogService {
       const post = await this.prisma.post.findUnique({ where: { slug } });
       if (!post) throw new NotFoundException('Post not found');
 
+      // post_tags는 FK CASCADE로 정리되지만 tags 본체는 남는다.
+      // 삭제 후에는 어떤 태그였는지 알 수 없으므로 미리 확보한다.
+      const tagIds = (
+        await this.prisma.postTag.findMany({
+          where: { postId: post.id },
+          select: { tagId: true },
+        })
+      ).map(pt => pt.tagId);
+
       await this.prisma.post.delete({ where: { slug } });
+
+      await this.deleteOrphanTags(tagIds).catch(err =>
+        this.logger.warn('orphan tag cleanup failed', err),
+      );
 
       // R2 파일 정리 (fire-and-forget)
       this.cleanupPostImages(post.content, post.thumbnailUrl).catch(err =>
@@ -594,6 +623,30 @@ export class BlogService {
         username: this.adminUsername,
       })
       .catch(err => this.logger.warn('admin log failed', err));
+  }
+
+  /**
+   * 주어진 태그 중 아무 글도 참조하지 않게 된 것을 삭제한다.
+   *
+   * 전체 태그를 스캔하지 않고 **후보를 받아서** 검사한다. 지금 규모(78건)에서는
+   * 차이가 없지만, "방금 연결이 끊긴 것만 본다"는 형태가 의도를 드러낸다.
+   *
+   * 안전 조건: 다른 글이 아직 쓰는 태그는 지우지 않는다. 이게 이 함수에서
+   * 가장 깨지기 쉬운 지점이라 테스트로 고정해 뒀다.
+   *
+   * 실패해도 글 수정/삭제 자체를 되돌리지 않는다 — 고아 태그가 남는 것은
+   * 기능적 문제가 아니고(카테고리 집계는 post_tags 기준이라 노출되지 않는다),
+   * 이것 때문에 사용자의 저장을 실패시키는 편이 더 나쁘다.
+   */
+  private async deleteOrphanTags(tagIds: number[]): Promise<void> {
+    if (tagIds.length === 0) return;
+
+    await this.prisma.tag.deleteMany({
+      where: {
+        id: { in: tagIds },
+        postTags: { none: {} },
+      },
+    });
   }
 
   private async resolveTagConnections(tagNames: string[]) {
