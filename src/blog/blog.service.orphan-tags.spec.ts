@@ -22,6 +22,7 @@ import { BlogService } from './blog.service';
 describe('BlogService 고아 태그 정리', () => {
   function build(existingTagIds: number[]) {
     const deleteManyCalls: Array<Record<string, unknown>> = [];
+    const tagQueryArgs: Array<Record<string, unknown>> = [];
     const post: {
       id: number;
       slug: string;
@@ -59,7 +60,16 @@ describe('BlogService 고아 태그 정리', () => {
           deleteManyCalls.push(where);
           return { count: 0 };
         }),
+        findMany: jest.fn(async (args: Record<string, unknown>) => {
+          tagQueryArgs.push({ op: 'findMany', ...args });
+          return [] as unknown[];
+        }),
+        count: jest.fn(async (args: Record<string, unknown>) => {
+          tagQueryArgs.push({ op: 'count', ...args });
+          return 0;
+        }),
       },
+      $transaction: jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
     };
 
     const storage = {
@@ -68,7 +78,7 @@ describe('BlogService 고아 태그 정리', () => {
       delete: jest.fn(async () => undefined),
     };
 
-    return { prisma, storage, deleteManyCalls };
+    return { prisma, storage, deleteManyCalls, tagQueryArgs };
   }
 
   async function makeService(deps: ReturnType<typeof build>) {
@@ -160,6 +170,28 @@ describe('BlogService 고아 태그 정리', () => {
         id: { in: [1, 2] },
         postTags: { none: {} },
       });
+    });
+  });
+
+  /**
+   * #107이 지적한 사용자에게 보이는 영향. `tag.count()`로 전체를 세면 고아가
+   * 포함되어 프론트 사이드바가 실제보다 많은 태그 수를 표시한다
+   * (운영 실측: API 78 / 실사용 75 / 고아 3).
+   *
+   * 생성 경로를 막았어도 이미 쌓인 것과 정리 실패분이 있으므로 조회에서도 방어한다.
+   */
+  describe('getTags — 고아 태그를 세지 않는다', () => {
+    it('목록과 총계 모두 참조가 있는 태그만 대상으로 한다', async () => {
+      const deps = build([]);
+      const service = await makeService(deps);
+
+      await service.getTags({ limit: 15 } as never);
+
+      const findMany = deps.tagQueryArgs.find(a => a.op === 'findMany');
+      const count = deps.tagQueryArgs.find(a => a.op === 'count');
+
+      expect(findMany).toMatchObject({ where: { postTags: { some: {} } } });
+      expect(count).toMatchObject({ where: { postTags: { some: {} } } });
     });
   });
 

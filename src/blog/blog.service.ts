@@ -256,13 +256,22 @@ export class BlogService {
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
+    // 아무 글도 안 쓰는 태그는 목록에서도 총계에서도 뺀다.
+    //
+    // `tag.count()`로 전체를 세면 고아 태그가 포함되어, 프론트 사이드바가
+    // 실제보다 많은 태그 수를 표시한다(운영 실측: 78 표시 / 실사용 75).
+    // 고아 태그는 생성 경로를 막았지만(deleteOrphanTags), 이미 쌓인 것과
+    // 정리 실패분이 있을 수 있으므로 조회 쪽에서도 방어한다.
+    const usedOnly = { postTags: { some: {} } } as const;
+
     const [tags, total] = await this.prisma.$transaction([
       this.prisma.tag.findMany({
+        where: usedOnly,
         include: { _count: { select: { postTags: true } } },
         orderBy: { postTags: { _count: 'desc' } },
         take: limit,
       }),
-      this.prisma.tag.count(),
+      this.prisma.tag.count({ where: usedOnly }),
     ]);
 
     const result = {
