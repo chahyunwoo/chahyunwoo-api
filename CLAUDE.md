@@ -6,7 +6,7 @@ chahyunwoo.dev 블로그 & 포트폴리오 백엔드 API.
 
 ## 기술 스택
 - **Runtime**: Node.js 22
-- **Framework**: NestJS 10 + Fastify 어댑터
+- **Framework**: NestJS 11 + Fastify 어댑터
 - **ORM**: Prisma 6 (multi-schema: blog / portfolio)
 - **DB**: PostgreSQL 16
 - **Auth**: JWT (단일 어드민, env vars로 관리)
@@ -64,12 +64,32 @@ prisma/
 - `POST /api/blog/posts/:slug/thumbnail` (multipart)
 
 ### Swagger UI
-개발 환경에서만 노출: `http://localhost:4000/docs`
+개발 환경에서만 노출: `http://localhost:4000/docs` (JSON은 `/docs-json`)
+
+### OpenAPI 스펙 (`openapi.json`)
+프론트(`hyunwoo-dev`)가 이 파일에서 API 타입을 생성한다. 저장소가 분리돼 있어 파일로 커밋해 둔다.
+
+```bash
+pnpm openapi:generate    # scripts/generate-openapi.ts → 루트 openapi.json
+```
+
+- 앱을 listen하지 않고 문서만 만든다 → `onModuleInit`이 안 돌아 **DB 접속이 없다**. 다만 provider
+  생성자의 `config.getOrThrow` 때문에 env 값 자체는 있어야 한다(로컬 `.env`, CI는 더미).
+- Swagger 설정은 `src/common/swagger/swagger.config.ts` 한 곳에서만 만든다. `/docs`와
+  `openapi.json`이 각자 `DocumentBuilder`를 들면 스펙이 조용히 갈라진다.
+- **DTO를 바꾸면 `pnpm openapi:generate` 후 같이 커밋해야 한다.** CI의 `OpenAPI spec drift check`가
+  검사한다.
+- 생성물이라 biome 검사 대상에서 제외돼 있다(`biome.json`의 `!openapi.json`).
 
 ## 브랜치 전략
 - `main` — 프로덕션
 - `dev` — 통합 브랜치
 - `feature/{ISSUE-KEY}` — 기능 브랜치 (dev에서 분기)
+
+`stg`는 의도적으로 두지 않는다(빠뜨린 게 아니다). 기여자가 1명이고 feature가 동시에 진행되지
+않아 단계를 하나 더 두면 병합만 늘고 얻는 게 없다. 대신 **`main` 푸시가 곧 프로덕션 배포**이므로
+(`.github/workflows/deploy.yml`), `dev`에서 검증을 끝내고 승인받은 뒤에만 `main`으로 올린다.
+검증 없이 `main`에 올리면 되돌릴 곳이 없다.
 
 ## 배포
 - Push to main → GitHub Actions → Tailscale SSH → 맥미니 Docker
@@ -88,4 +108,10 @@ prisma/
 ## 현재 남은 작업
 - [ ] 포트폴리오 어드민 CRUD (나중에)
 - [ ] 검색 성능 개선: pg_trgm 인덱스 마이그레이션 (필요 시)
-- [ ] 프론트 연동 후 openapi-typescript 타입 생성 설정
+- [x] 프론트 연동 후 openapi-typescript 타입 생성 설정 — 파이프라인 구축 완료 (#102)
+- [ ] **나머지 라우트의 Response DTO** — 72개 오퍼레이션 중 성공 응답 스키마가 있는 건
+      `GET /api/blog/posts` 1개뿐이다. 나머지는 프론트가 타입을 생성해도 응답이 비어 쓸 수 없다.
+      단, 본문이 원래 없는 204 라우트(`POST /api/auth/logout` 등)는 대상이 아니다.
+      확인 (프론트 헬퍼가 200 다음 201도 보므로 둘 다 센다):
+      `jq -r '[.paths|to_entries[]|.key as $p|.value|to_entries[]|select((.value.responses["200"].content["application/json"]//.value.responses["201"].content["application/json"])!=null)|"\($p) \(.key)"]|.[]' openapi.json`
+- [ ] 테스트 0건 — `pnpm test`가 `--passWithNoTests`라 CI Test 스텝이 항상 초록인데 아무것도 검사하지 않는다
