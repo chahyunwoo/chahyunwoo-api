@@ -1,5 +1,12 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Post, PostTag, Tag } from '@prisma/client';
 import { Prisma } from '@prisma/client';
@@ -23,6 +30,16 @@ import type { UpdatePostDto } from './dto/update-post.dto';
 
 type PostWithTags = Post & {
   postTags: Array<PostTag & { tag: Tag }>;
+};
+
+/**
+ * 이미지 확정 결과. `error`가 있으면 일부만 옮겨진 상태이고,
+ * `content`/`thumbnailUrl`은 **그 시점까지 성공한 만큼**을 반영한 값이다.
+ */
+type FinalizeImagesResult = {
+  content: string;
+  thumbnailUrl?: string | null;
+  error?: Error;
 };
 
 @Injectable()
@@ -239,13 +256,22 @@ export class BlogService {
     const cached = await this.cache.get(key);
     if (cached) return cached;
 
+    // 아무 글도 안 쓰는 태그는 목록에서도 총계에서도 뺀다.
+    //
+    // `tag.count()`로 전체를 세면 고아 태그가 포함되어, 프론트 사이드바가
+    // 실제보다 많은 태그 수를 표시한다(운영 실측: 78 표시 / 실사용 75).
+    // 고아 태그는 생성 경로를 막았지만(deleteOrphanTags), 이미 쌓인 것과
+    // 정리 실패분이 있을 수 있으므로 조회 쪽에서도 방어한다.
+    const usedOnly = { postTags: { some: {} } } as const;
+
     const [tags, total] = await this.prisma.$transaction([
       this.prisma.tag.findMany({
+        where: usedOnly,
         include: { _count: { select: { postTags: true } } },
         orderBy: { postTags: { _count: 'desc' } },
         take: limit,
       }),
-      this.prisma.tag.count(),
+      this.prisma.tag.count({ where: usedOnly }),
     ]);
 
     const result = {
@@ -414,22 +440,23 @@ export class BlogService {
       })) as PostWithTags;
 
       // DB 성공 후 temp 이미지를 확정 경로로 이동
-      let updated = post;
-      try {
-        const finalized = await this.finalizeImages(slug, post.content, post.thumbnailUrl);
-        updated = (await this.prisma.post.update({
-          where: { slug },
-          data: { content: finalized.content, thumbnailUrl: finalized.thumbnailUrl },
-          include: { postTags: { include: { tag: true } } },
-        })) as PostWithTags;
-      } catch (moveError) {
-        this.logger.error('Image finalization failed, rolling back post', moveError);
+      const finalized = await this.finalizeImages(slug, post.content, post.thumbnailUrl);
+      const updated = (await this.prisma.post.update({
+        where: { slug },
+        data: { content: finalized.content, thumbnailUrl: finalized.thumbnailUrl },
+        include: { postTags: { include: { tag: true } } },
+      })) as PostWithTags;
+
+      if (finalized.error) {
+        // 이미 옮겨진 이미지의 새 위치는 위에서 DB에 반영했다. 그 뒤에 글을 지운다 —
+        // 순서가 반대면 옮겨진 파일을 가리킬 레코드가 없어져 R2에 고아 파일만 남는다.
+        this.logger.error('Image finalization failed, rolling back post', finalized.error);
         await this.prisma.post
           .delete({ where: { slug } })
           .catch(deleteErr =>
             this.logger.error('Rollback failed: post left with temp URLs', deleteErr),
           );
-        throw moveError;
+        throw finalized.error;
       }
 
       const result = this.formatPost(updated, true);
@@ -445,6 +472,18 @@ export class BlogService {
 
   async update(slug: string, dto: UpdatePostDto) {
     try {
+      // 태그를 교체하면 기존 연결이 끊긴다. 끊긴 뒤에는 어떤 태그였는지 알 수 없으므로
+      // 교체 전에 후보 id를 확보한다.
+      const previousTagIds =
+        dto.tags !== undefined
+          ? (
+              await this.prisma.postTag.findMany({
+                where: { post: { slug } },
+                select: { tagId: true },
+              })
+            ).map(pt => pt.tagId)
+          : [];
+
       // DB에 먼저 저장 (temp URL 그대로)
       const post = (await this.prisma.post.update({
         where: { slug },
@@ -471,18 +510,38 @@ export class BlogService {
         include: { postTags: { include: { tag: true } } },
       })) as PostWithTags;
 
-      // DB 성공 후 temp 이미지 확정 경로로 이동
+      // 태그 정리는 이미지 확정보다 먼저 한다. 확정이 실패하면 아래에서 throw하므로,
+      // 뒤에 두면 태그를 교체하면서 이미지 확정이 실패한 경우 정리가 건너뛰어져
+      // 고아 태그가 남는다. 둘은 서로 독립된 정리 작업이다.
+      await this.deleteOrphanTags(previousTagIds).catch(err =>
+        this.logger.warn('orphan tag cleanup failed', err),
+      );
+
+      // DB 성공 후 temp 이미지 확정 경로로 이동.
+      //
+      // 판정을 `dto.content || dto.thumbnailUrl`로 하면 안 된다 — 빈 문자열이 falsy라
+      // `content: ""`로 보내면 확정 단계를 건너뛴다. 값이 왔는지를 봐야 한다.
       let updated = post;
-      if (dto.content || dto.thumbnailUrl) {
-        try {
-          const finalized = await this.finalizeImages(slug, post.content, post.thumbnailUrl);
-          updated = (await this.prisma.post.update({
-            where: { slug },
-            data: { content: finalized.content, thumbnailUrl: finalized.thumbnailUrl },
-            include: { postTags: { include: { tag: true } } },
-          })) as PostWithTags;
-        } catch (moveError) {
-          this.logger.error('Image finalization failed during update', moveError);
+      if (dto.content !== undefined || dto.thumbnailUrl !== undefined) {
+        const finalized = await this.finalizeImages(slug, post.content, post.thumbnailUrl);
+
+        // 실패했더라도 그때까지 옮긴 만큼은 DB에 반영한다. 반영하지 않으면
+        // 이미 이동된 파일을 가리킬 URL이 사라져 그 이미지가 즉시 깨진다.
+        updated = (await this.prisma.post.update({
+          where: { slug },
+          data: { content: finalized.content, thumbnailUrl: finalized.thumbnailUrl },
+          include: { postTags: { include: { tag: true } } },
+        })) as PostWithTags;
+
+        if (finalized.error) {
+          // 삼키지 않는다. 삼키면 temp URL이 남은 채 200이 나가고, 그 temp 파일은
+          // 매일 3시 StorageCleanupTask가 24시간 뒤 지우므로 다음 날 이미지가 깨진다.
+          // 저장 시점에는 정상으로 보여 원인 추적이 어렵다.
+          this.logger.error('Image finalization failed during update', finalized.error);
+          await this.triggerPostSideEffects('update', slug, updated.title);
+          throw new InternalServerErrorException(
+            '이미지 확정에 실패했습니다. 글 내용은 저장됐습니다. 이미지를 다시 저장해 주세요.',
+          );
         }
       }
 
@@ -503,7 +562,20 @@ export class BlogService {
       const post = await this.prisma.post.findUnique({ where: { slug } });
       if (!post) throw new NotFoundException('Post not found');
 
+      // post_tags는 FK CASCADE로 정리되지만 tags 본체는 남는다.
+      // 삭제 후에는 어떤 태그였는지 알 수 없으므로 미리 확보한다.
+      const tagIds = (
+        await this.prisma.postTag.findMany({
+          where: { postId: post.id },
+          select: { tagId: true },
+        })
+      ).map(pt => pt.tagId);
+
       await this.prisma.post.delete({ where: { slug } });
+
+      await this.deleteOrphanTags(tagIds).catch(err =>
+        this.logger.warn('orphan tag cleanup failed', err),
+      );
 
       // R2 파일 정리 (fire-and-forget)
       this.cleanupPostImages(post.content, post.thumbnailUrl).catch(err =>
@@ -549,29 +621,62 @@ export class BlogService {
    * blog/temp/xxx.png → blog/posts/{slug}/xxx.png
    * blog/temp/xxx.jpg (thumbnail) → blog/thumbnails/{nanoid}.ext
    */
-  private async finalizeImages(slug: string, content: string, thumbnailUrl?: string | null) {
+  /**
+   * temp에 올라간 이미지를 확정 경로로 옮기고, 본문의 URL을 새 위치로 치환한다.
+   *
+   * **부분 실패를 삼키지 않되, 이미 옮긴 것은 잃지 않는다.**
+   *
+   * 이전 구현은 루프 중간에 `storage.move`가 실패하면 예외가 그대로 올라가면서
+   * 그때까지 치환한 `finalContent`를 통째로 버렸다. 그런데 `move`는 R2에서
+   * Copy → Head → Delete를 수행하므로 성공한 파일의 원본 temp는 이미 삭제된
+   * 상태다. 결과적으로 파일은 옮겨졌는데 DB는 옛 temp URL을 가리켜 즉시 깨졌다.
+   *
+   * 그래서 실패해도 "여기까지 옮겼다"는 결과를 함께 돌려준다. 호출부가 그것을
+   * DB에 먼저 반영한 뒤 예외를 올리면, 실패한 이미지 하나만 temp를 가리키고
+   * 나머지는 정상 위치를 가리킨다 — 어느 쪽도 유실되지 않는다.
+   */
+  private async finalizeImages(
+    slug: string,
+    content: string,
+    thumbnailUrl?: string | null,
+  ): Promise<FinalizeImagesResult> {
     const publicUrl = this.storage.getPublicUrl();
     const tempPrefix = `${publicUrl}/${BLOG_TEMP_PREFIX}/`;
     let finalContent = content;
+    let finalThumbnail = thumbnailUrl;
 
-    // content 내 temp 이미지 이동
     const tempUrls =
       content.match(
         new RegExp(`${tempPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^"\\s)]+`, 'g'),
       ) ?? [];
+
     for (const tempUrl of tempUrls) {
       const filename = tempUrl.slice(tempPrefix.length);
       const destKey = `blog/posts/${slug}/${filename}`;
-      const newUrl = await this.storage.move(tempUrl, destKey);
-      finalContent = finalContent.replace(tempUrl, newUrl);
+      try {
+        const newUrl = await this.storage.move(tempUrl, destKey);
+        finalContent = finalContent.replace(tempUrl, newUrl);
+      } catch (error) {
+        return {
+          content: finalContent,
+          thumbnailUrl: finalThumbnail,
+          error: error instanceof Error ? error : new Error(String(error)),
+        };
+      }
     }
 
-    // 썸네일 temp → 확정 경로 (랜덤 ID로 저장)
-    let finalThumbnail = thumbnailUrl;
     if (thumbnailUrl?.startsWith(tempPrefix)) {
       const ext = thumbnailUrl.slice(thumbnailUrl.lastIndexOf('.'));
       const destKey = `blog/thumbnails/${generateSlug()}${ext}`;
-      finalThumbnail = await this.storage.move(thumbnailUrl, destKey);
+      try {
+        finalThumbnail = await this.storage.move(thumbnailUrl, destKey);
+      } catch (error) {
+        return {
+          content: finalContent,
+          thumbnailUrl: finalThumbnail,
+          error: error instanceof Error ? error : new Error(String(error)),
+        };
+      }
     }
 
     return { content: finalContent, thumbnailUrl: finalThumbnail };
@@ -594,6 +699,30 @@ export class BlogService {
         username: this.adminUsername,
       })
       .catch(err => this.logger.warn('admin log failed', err));
+  }
+
+  /**
+   * 주어진 태그 중 아무 글도 참조하지 않게 된 것을 삭제한다.
+   *
+   * 전체 태그를 스캔하지 않고 **후보를 받아서** 검사한다. 지금 규모(78건)에서는
+   * 차이가 없지만, "방금 연결이 끊긴 것만 본다"는 형태가 의도를 드러낸다.
+   *
+   * 안전 조건: 다른 글이 아직 쓰는 태그는 지우지 않는다. 이게 이 함수에서
+   * 가장 깨지기 쉬운 지점이라 테스트로 고정해 뒀다.
+   *
+   * 실패해도 글 수정/삭제 자체를 되돌리지 않는다 — 고아 태그가 남는 것은
+   * 기능적 문제가 아니고(카테고리 집계는 post_tags 기준이라 노출되지 않는다),
+   * 이것 때문에 사용자의 저장을 실패시키는 편이 더 나쁘다.
+   */
+  private async deleteOrphanTags(tagIds: number[]): Promise<void> {
+    if (tagIds.length === 0) return;
+
+    await this.prisma.tag.deleteMany({
+      where: {
+        id: { in: tagIds },
+        postTags: { none: {} },
+      },
+    });
   }
 
   private async resolveTagConnections(tagNames: string[]) {

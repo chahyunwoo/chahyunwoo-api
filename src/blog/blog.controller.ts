@@ -13,7 +13,14 @@ import {
   Req,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiConsumes, ApiCookieAuth, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiCookieAuth,
+  ApiOkResponse,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 import { AuthService } from '../auth/auth.service';
 import { Public } from '../common/decorators/public.decorator';
 import {
@@ -27,6 +34,7 @@ import type { MultipartRequest } from '../types/fastify.d';
 import { BlogService } from './blog.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreatePostDto } from './dto/create-post.dto';
+import { PostListResponseDto } from './dto/post-list-response.dto';
 import { PostQueryDto, RecentQueryDto, SearchQueryDto, TagQueryDto } from './dto/post-query.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 
@@ -49,6 +57,7 @@ export class BlogController {
   @Public()
   @ApiSecurity('api-key')
   @Get('posts')
+  @ApiOkResponse({ type: PostListResponseDto })
   findAll(@Query() query: PostQueryDto, @Req() req: MultipartRequest) {
     const isAdmin = this.authService.isAuthenticated(req.cookies?.access_token);
     return this.blogService.findAll(query, isAdmin);

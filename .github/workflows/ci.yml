@@ -3,8 +3,11 @@ name: CI
 on:
   push:
     branches: [dev, main]
+  # pull_request에는 base 제한을 두지 않는다. `branches: [dev, main]`로 막으면
+  # feature 브랜치를 base로 하는 PR이 CI를 **전혀 돌지 않는다** — 스택형 PR
+  # (기능 브랜치 위에 후속 작업을 쌓고 그 사이를 PR로 여는 방식)에서 검증 없이
+  # 코드가 올라간다. 게이트는 base가 무엇이든 걸려야 한다.
   pull_request:
-    branches: [dev, main]
 
 jobs:
   ci:
@@ -49,6 +52,30 @@ jobs:
 
       - name: Type Check
         run: pnpm typecheck
+
+      # 커밋된 openapi.json이 현재 소스와 일치하는지 검사한다.
+      # 프론트(hyunwoo-dev)가 이 파일에서 타입을 생성하므로, 스펙이 낡으면
+      # 프론트 타입이 조용히 실제 API와 어긋난다.
+      # DB 접속은 하지 않지만(listen하지 않아 onModuleInit이 안 돌아감) provider
+      # 생성자의 config.getOrThrow 때문에 env 값 자체는 있어야 한다.
+      - name: OpenAPI spec drift check
+        run: |
+          pnpm openapi:generate
+          if ! git diff --exit-code openapi.json; then
+            echo "::error::openapi.json이 소스와 다릅니다. 로컬에서 'pnpm openapi:generate' 후 커밋하세요."
+            exit 1
+          fi
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/hyunwoo_test
+          JWT_SECRET: ci-test-secret-32-chars-minimum!!
+          ADMIN_USERNAME: admin
+          ADMIN_PASSWORD_HASH: $2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/zo.RvCNPC
+          R2_ACCOUNT_ID: placeholder
+          R2_ACCESS_KEY_ID: placeholder
+          R2_SECRET_ACCESS_KEY: placeholder
+          R2_BUCKET_NAME: placeholder
+          R2_PUBLIC_URL: https://placeholder.r2.dev
+          ALLOWED_ORIGINS: http://localhost:3000
 
       - name: Build
         run: pnpm build
