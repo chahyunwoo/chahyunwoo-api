@@ -9,7 +9,19 @@ export const ALLOWED_MIME_TYPES = new Set([
   'image/avif',
 ]);
 
-export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+/**
+ * 업로드 허용 최대 크기.
+ *
+ * **`main.ts`의 multipart `limits.fileSize`와 반드시 같은 값을 써야 한다.**
+ * 예전에는 여기가 10MB, multipart가 5MB였다. multipart가 먼저 걸러버려서
+ * 아래 `buffer.length > MAX_FILE_SIZE` 검사는 **어떤 입력으로도 참이 될 수 없는
+ * 죽은 코드**였고, "File too large (max 10 MB)" 메시지도 절대 표시되지 않았다.
+ * 게다가 multipart가 던지는 에러는 HttpException이 아니라서 413이 아닌 500이
+ * 나갔다 — 6MB 이미지를 올린 관리자는 원인 모를 500만 봤다.
+ *
+ * 그래서 이 상수를 유일한 출처로 삼고 main.ts가 이 값을 가져다 쓴다.
+ */
+export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
 const MIME_TO_EXT: Record<string, string> = {
   'image/jpeg': '.jpg',

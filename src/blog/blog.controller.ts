@@ -22,6 +22,7 @@ import {
   ApiSecurity,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from '../auth/auth.service';
 import { Public } from '../common/decorators/public.decorator';
 import {
@@ -134,8 +135,22 @@ export class BlogController {
     return this.blogService.findBySlug(slug, isAdmin);
   }
 
+  /**
+   * 미발행 글 미리보기.
+   *
+   * 이 라우트는 `findBySlug(slug, isAdmin = true)`를 불러 `published` 검사를
+   * 건너뛴다. 즉 유효한 토큰 하나면 **임의의 slug**로 미발행 글을 읽을 수 있다.
+   * 토큰은 어드민 화면 진입 시점에 slug 없이 발급되므로(프론트가 글을 저장하기
+   * 전에 미리 받는다) 특정 글에 묶을 수가 없다.
+   *
+   * 그래서 최소한 **전수 대입은 막는다.** 스로틀이 없으면 토큰이 URL·Referer로
+   * 한 번 새는 순간 30분 동안 slug를 무제한 대입해 미발행 글을 전부 긁어낼 수
+   * 있다. 분당 10회면 정상적인 미리보기(한 글을 열고 새로고침 몇 번)에는
+   * 걸리지 않으면서 대입 속도는 실효적으로 죽인다.
+   */
   @Public()
   @ApiSecurity('api-key')
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Get('posts/:slug/preview')
   @ApiOkResponse({ type: PostDetailDto })
   @ApiNotFound('Post')

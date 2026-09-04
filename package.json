@@ -16,7 +16,16 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "biome check --write --no-errors-on-unmatched"
+    ],
+    "*.json": [
+      "biome format --write --no-errors-on-unmatched"
+    ]
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1024.0",
@@ -66,7 +75,9 @@
     "fast-glob": "^3.3.3",
     "fastify": "5.8.2",
     "gray-matter": "^4.0.3",
+    "husky": "^9.1.7",
     "jest": "^30.3.0",
+    "lint-staged": "^16.4.0",
     "prisma": "^7.6.0",
     "ts-jest": "^29.2.0",
     "ts-node": "^10.9.2",

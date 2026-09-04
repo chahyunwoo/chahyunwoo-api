@@ -29,7 +29,12 @@ import type {
   UpdateWorkDto,
 } from './dto';
 import { ValidateLocalePipe } from './pipes/validate-locale.pipe';
-import { DEFAULT_LOCALE, PORTFOLIO_CACHE_PREFIX, PORTFOLIO_CACHE_TTL } from './portfolio.constants';
+import {
+  DEFAULT_LOCALE,
+  PORTFOLIO_CACHE_PREFIX,
+  PORTFOLIO_CACHE_TTL,
+  PORTFOLIO_REVALIDATION_TARGETS,
+} from './portfolio.constants';
 import { generateGradientColors } from './portfolio.utils';
 
 @Injectable()
@@ -48,6 +53,32 @@ export class PortfolioService {
   private readonly logger = new Logger(PortfolioService.name);
   private readonly cache: NamespacedCache;
 
+  /**
+   * 포트폴리오 콘텐츠 변경 후의 부수효과를 한 곳에서 처리한다.
+   *
+   * **블로그 앱도 함께 revalidate해야 한다.** 블로그의 `/about/[locale]`은
+   * 포트폴리오 API(profile·experiences·projects·skills·education)를 직접 가져와
+   * 서빙하기 때문이다. `trigger('portfolio')`만 부르면 `PORTFOLIO_REVALIDATE_URL`
+   * 한 곳으로만 POST가 나가고, 블로그 앱은 통보를 받지 못한다.
+   *
+   * 그 결과가 단순한 지연이 아니라 **영구 stale**이라는 점이 중요하다 —
+   * `DEFAULT_REVALIDATE = false`라 시간 기반 만료가 없어서, 통보가 안 가면
+   * 그 내용은 다음 배포까지 영원히 옛것으로 남는다.
+   *
+   * 블로그 앱의 revalidate 라우트에는 `ABOUT_PATHS` 순회와 `PORTFOLIO_*` 태그
+   * 무효화가 이미 전부 구현돼 있었다. 부르는 쪽만 없었다.
+   *
+   * 판정을 이 헬퍼 한 곳으로 모으는 이유: 호출부가 대상 목록을 풀어 쓰면
+   * 새 대상이 생겼을 때 그 호출부만 조용히 빠진다.
+   */
+  private triggerPortfolioSideEffects(): void {
+    for (const target of PORTFOLIO_REVALIDATION_TARGETS) {
+      this.revalidation
+        .trigger(target)
+        .catch(err => this.logger.warn(`${target} revalidation failed`, err));
+    }
+  }
+
   // ─── Locales ────────────────────────────────────────────────────────────────
 
   async getLocales() {
@@ -59,7 +90,12 @@ export class PortfolioService {
       const result = await this.prisma.locale.create({
         data: { code: dto.code, label: dto.label },
       });
+      // 서버 파이프 캐시만 비우면 안 된다. 두 프론트 앱이 로케일 목록을
+      // PORTFOLIO_LOCALES 태그로 캐싱하므로, 통보하지 않으면 새 로케일이
+      // 화면에 영영 나타나지 않는다.
       this.localePipe.invalidateCache();
+      await this.cache.invalidate();
+      this.triggerPortfolioSideEffects();
       return result;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -73,6 +109,8 @@ export class PortfolioService {
     try {
       await this.prisma.locale.delete({ where: { id } });
       this.localePipe.invalidateCache();
+      await this.cache.invalidate();
+      this.triggerPortfolioSideEffects();
     } catch (error) {
       this.handleNotFound(error, 'Locale');
     }
@@ -175,9 +213,7 @@ export class PortfolioService {
     }
 
     await this.cache.invalidate();
-    this.revalidation
-      .trigger('portfolio')
-      .catch(err => this.logger.warn('revalidation failed', err));
+    this.triggerPortfolioSideEffects();
     return this.getProfile(DEFAULT_LOCALE);
   }
 
@@ -275,9 +311,7 @@ export class PortfolioService {
       include: { translations: true },
     });
     await this.cache.invalidate();
-    this.revalidation
-      .trigger('portfolio')
-      .catch(err => this.logger.warn('revalidation failed', err));
+    this.triggerPortfolioSideEffects();
     return result;
   }
 
@@ -305,9 +339,7 @@ export class PortfolioService {
         include: { translations: true },
       });
       await this.cache.invalidate();
-      this.revalidation
-        .trigger('portfolio')
-        .catch(err => this.logger.warn('revalidation failed', err));
+      this.triggerPortfolioSideEffects();
       return result;
     } catch (error) {
       this.handleNotFound(error, 'Experience');
@@ -318,9 +350,7 @@ export class PortfolioService {
     try {
       await this.prisma.experience.delete({ where: { id } });
       await this.cache.invalidate();
-      this.revalidation
-        .trigger('portfolio')
-        .catch(err => this.logger.warn('revalidation failed', err));
+      this.triggerPortfolioSideEffects();
     } catch (error) {
       this.handleNotFound(error, 'Experience');
     }
@@ -384,9 +414,7 @@ export class PortfolioService {
       include: { translations: true },
     });
     await this.cache.invalidate();
-    this.revalidation
-      .trigger('portfolio')
-      .catch(err => this.logger.warn('revalidation failed', err));
+    this.triggerPortfolioSideEffects();
     return result;
   }
 
@@ -414,9 +442,7 @@ export class PortfolioService {
         include: { translations: true },
       });
       await this.cache.invalidate();
-      this.revalidation
-        .trigger('portfolio')
-        .catch(err => this.logger.warn('revalidation failed', err));
+      this.triggerPortfolioSideEffects();
       return result;
     } catch (error) {
       this.handleNotFound(error, 'Project');
@@ -427,9 +453,7 @@ export class PortfolioService {
     try {
       await this.prisma.project.delete({ where: { id } });
       await this.cache.invalidate();
-      this.revalidation
-        .trigger('portfolio')
-        .catch(err => this.logger.warn('revalidation failed', err));
+      this.triggerPortfolioSideEffects();
     } catch (error) {
       this.handleNotFound(error, 'Project');
     }
@@ -513,9 +537,7 @@ export class PortfolioService {
       include: { translations: true },
     });
     await this.cache.invalidate();
-    this.revalidation
-      .trigger('portfolio')
-      .catch(err => this.logger.warn('revalidation failed', err));
+    this.triggerPortfolioSideEffects();
     return result;
   }
 
@@ -550,9 +572,7 @@ export class PortfolioService {
         include: { translations: true },
       });
       await this.cache.invalidate();
-      this.revalidation
-        .trigger('portfolio')
-        .catch(err => this.logger.warn('revalidation failed', err));
+      this.triggerPortfolioSideEffects();
       return result;
     } catch (error) {
       this.handleNotFound(error, 'Work');
@@ -563,9 +583,7 @@ export class PortfolioService {
     try {
       await this.prisma.work.delete({ where: { id } });
       await this.cache.invalidate();
-      this.revalidation
-        .trigger('portfolio')
-        .catch(err => this.logger.warn('revalidation failed', err));
+      this.triggerPortfolioSideEffects();
     } catch (error) {
       this.handleNotFound(error, 'Work');
     }
@@ -613,9 +631,7 @@ export class PortfolioService {
       },
     });
     await this.cache.invalidate();
-    this.revalidation
-      .trigger('portfolio')
-      .catch(err => this.logger.warn('revalidation failed', err));
+    this.triggerPortfolioSideEffects();
     return result;
   }
 
@@ -632,9 +648,7 @@ export class PortfolioService {
         },
       });
       await this.cache.invalidate();
-      this.revalidation
-        .trigger('portfolio')
-        .catch(err => this.logger.warn('revalidation failed', err));
+      this.triggerPortfolioSideEffects();
       return result;
     } catch (error) {
       this.handleNotFound(error, 'Skill');
@@ -645,9 +659,7 @@ export class PortfolioService {
     try {
       await this.prisma.skill.delete({ where: { id } });
       await this.cache.invalidate();
-      this.revalidation
-        .trigger('portfolio')
-        .catch(err => this.logger.warn('revalidation failed', err));
+      this.triggerPortfolioSideEffects();
     } catch (error) {
       this.handleNotFound(error, 'Skill');
     }
@@ -704,9 +716,7 @@ export class PortfolioService {
       include: { translations: true },
     });
     await this.cache.invalidate();
-    this.revalidation
-      .trigger('portfolio')
-      .catch(err => this.logger.warn('revalidation failed', err));
+    this.triggerPortfolioSideEffects();
     return result;
   }
 
@@ -731,9 +741,7 @@ export class PortfolioService {
         include: { translations: true },
       });
       await this.cache.invalidate();
-      this.revalidation
-        .trigger('portfolio')
-        .catch(err => this.logger.warn('revalidation failed', err));
+      this.triggerPortfolioSideEffects();
       return result;
     } catch (error) {
       this.handleNotFound(error, 'Education');
@@ -744,9 +752,7 @@ export class PortfolioService {
     try {
       await this.prisma.education.delete({ where: { id } });
       await this.cache.invalidate();
-      this.revalidation
-        .trigger('portfolio')
-        .catch(err => this.logger.warn('revalidation failed', err));
+      this.triggerPortfolioSideEffects();
     } catch (error) {
       this.handleNotFound(error, 'Education');
     }
@@ -764,6 +770,14 @@ export class PortfolioService {
         },
       });
       if (recent) {
+        // 저장하지 않고 성공을 반환한다. 공격자에게 중복 여부를 알려주지 않기
+        // 위해서다. 다만 그 대가로 "success: true 인데 저장이 안 된 경우"가
+        // 생기므로, 최소한 로그로는 남겨 추적 가능하게 한다. 이게 없으면
+        // 정상 사용자가 내용을 고쳐 다시 보낸 문의가 조용히 사라지고,
+        // 서버 어디에도 흔적이 남지 않는다.
+        this.logger.warn(
+          `Contact skipped by 10min cooldown (email=${dto.email}, lastAt=${recent.createdAt.toISOString()})`,
+        );
         return { success: true, message: 'Message sent successfully' };
       }
 

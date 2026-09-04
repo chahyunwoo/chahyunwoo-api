@@ -14,8 +14,9 @@ import { join } from 'node:path';
 describe('OpenAPI 응답 스키마 커버리지', () => {
   const spec = JSON.parse(readFileSync(join(__dirname, '../../openapi.json'), 'utf8'));
 
+  type MediaType = { schema?: Record<string, unknown> };
   type Operation = {
-    responses?: Record<string, { content?: Record<string, unknown> }>;
+    responses?: Record<string, { content?: Record<string, MediaType> }>;
   };
 
   const operations: Array<{ path: string; method: string; op: Operation }> = [];
@@ -27,16 +28,36 @@ describe('OpenAPI 응답 스키마 커버리지', () => {
     }
   }
 
+  /**
+   * 성공 응답에 **비어 있지 않은 스키마**가 있는지 본다.
+   *
+   * `application/json` 키의 존재만 보면 안 된다. `content: { 'application/json': {} }`
+   * 처럼 스키마가 빈 상태도 통과하는데, 프론트의 `ApiOkJson` 헬퍼는 그때
+   * `MissingResponseSchema`를 돌려줘 **컴파일이 터진다**. 즉 이 파일이 막겠다고
+   * 선언한 바로 그 상태가 초록으로 지나가고 있었다(뮤테이션으로 확인).
+   */
   function hasSuccessBody(op: Operation) {
     const r = op.responses ?? {};
-    return Boolean(
-      r['200']?.content?.['application/json'] ?? r['201']?.content?.['application/json'],
-    );
+    const media =
+      r['200']?.content?.['application/json'] ?? r['201']?.content?.['application/json'];
+    if (!media) return false;
+    const schema = media.schema;
+    return Boolean(schema && Object.keys(schema).length > 0);
   }
   const hasNoContent = (op: Operation) => Boolean(op.responses?.['204']);
 
-  it('스펙에 오퍼레이션이 있다', () => {
-    expect(operations.length).toBeGreaterThan(0);
+  /**
+   * 오퍼레이션 **총 개수**를 고정한다.
+   *
+   * `> 0`만 보면 라우트를 통째로 지웠을 때 순회 대상에서 빠져 아무 검사도
+   * 걸리지 않는다(뮤테이션으로 확인: 72→71이어도 전부 통과했다).
+   * 라우트를 의도적으로 추가/삭제했다면 이 숫자를 함께 고친다 —
+   * 그 순간이 "스펙이 실제로 바뀌었다"를 리뷰에서 드러내는 지점이다.
+   */
+  const EXPECTED_OPERATION_COUNT = 72;
+
+  it(`스펙에 오퍼레이션이 정확히 ${EXPECTED_OPERATION_COUNT}개 있다`, () => {
+    expect(operations).toHaveLength(EXPECTED_OPERATION_COUNT);
   });
 
   /**

@@ -82,6 +82,19 @@ export class StorageService {
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
   }
 
+  /**
+   * 버킷 키로 직접 삭제한다.
+   *
+   * `delete(url)`은 공개 URL을 키로 되돌리는 과정을 거치는데, 롤백 경로에서는
+   * `move()`가 이미 목적지 **키**를 알고 있으므로 URL로 조립했다가 다시 파싱하는
+   * 왕복이 불필요하다. 그 왕복에서 prefix가 어긋나면 `urlToKey`가 null을 돌려
+   * 삭제가 조용히 no-op이 되는데, 롤백에서 그건 고아 파일로 남는다는 뜻이다.
+   */
+  async deleteByKey(key: string): Promise<void> {
+    if (!key) return;
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+  }
+
   async cleanupTempFiles(maxAgeMs = 24 * 60 * 60 * 1000): Promise<number> {
     const cutoff = new Date(Date.now() - maxAgeMs);
     let deleted = 0;
