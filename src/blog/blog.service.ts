@@ -820,26 +820,69 @@ export class BlogService {
     });
   }
 
+  /**
+   * 태그 이름 목록을 postTags 연결로 바꾼다.
+   *
+   * 두 단계의 중복 제거가 필요하다:
+   *  1) **슬러그 기준 입력 dedupe.** `["React", "react"]`처럼 이름은 다른데
+   *     슬러그가 같은 값이 한 요청에 들어오면 같은 tagId가 두 번 나오고,
+   *     복합 PK `(post_id, tag_id)` 중복으로 P2002가 난다. 그 P2002를 호출부가
+   *     "Slug collision. Please retry."로 오역해, 사용자는 재시도해도 영원히
+   *     같은 실패를 본다.
+   *  2) **빈 슬러그 거부.** 이름이 기호뿐이면 슬러그가 비는데, 그대로 두면
+   *     서로 다른 태그가 전부 슬러그 "" 한 행으로 합쳐진다.
+   *
+   * upsert를 병렬로 돌리지 않는 이유: 같은 슬러그가 동시에 들어오면 upsert가
+   * 원자적이지 않아 경합한다. 태그 수는 글당 한 자릿수라 순차로 돌아도 비용이
+   * 무시할 만하다.
+   */
   private async resolveTagConnections(tagNames: string[]) {
-    return Promise.all(
-      tagNames.map(async name => {
-        const slug = this.slugifyTag(name);
-        const tag = await this.prisma.tag.upsert({
-          where: { slug },
-          create: { name, slug },
-          update: {},
-        });
-        return { tagId: tag.id };
-      }),
-    );
+    const bySlug = new Map<string, string>();
+    for (const name of tagNames) {
+      const slug = this.slugifyTag(name);
+      if (!slug) continue; // 기호뿐인 이름은 태그로 만들지 않는다
+      if (!bySlug.has(slug)) bySlug.set(slug, name);
+    }
+
+    const connections: Array<{ tagId: number }> = [];
+    for (const [slug, name] of bySlug) {
+      const tag = await this.prisma.tag.upsert({
+        where: { slug },
+        create: { name, slug },
+        update: {},
+      });
+      connections.push({ tagId: tag.id });
+    }
+    return connections;
   }
 
+  /**
+   * 태그 이름을 슬러그로 바꾼다.
+   *
+   * `[^\w-]`로 지우면 안 된다 — `\w`는 ASCII만 인정하므로:
+   *   "C++" → "c",  "C#" → "c"    (서로 다른 태그가 같은 슬러그로 충돌)
+   *   "노드" → "",  "리액트" → ""  (한글 태그가 전부 빈 슬러그 하나로 합쳐짐)
+   * `resolveTagConnections`가 `upsert({ where: { slug } })`를 쓰므로 충돌하면
+   * 두 번째 태그가 **첫 번째 태그의 행에 조용히 연결**되어 화면에 엉뚱한
+   * 이름이 뜬다.
+   *
+   * 유니코드 문자/숫자를 보존하고, 기술 이름에서 의미를 지니는 `+`/`#`은
+   * 지우지 않고 `-plus`/`-sharp`로 옮긴다 — 그냥 지우면 "C++"와 "C#"가 둘 다
+   * "c"가 되어 (그리고 "C"와도) 충돌한다.
+   *
+   * 기존 데이터 영향 없음: 운영 태그 75개는 전부 ASCII라 새 규칙에서도 슬러그가
+   * 그대로다(2026-09-04 전수 대조, 변경 0건). 그래서 마이그레이션이 필요 없다.
+   */
   private slugifyTag(name: string): string {
     return name
       .toLowerCase()
       .trim()
+      .replace(/\+/g, '-plus')
+      .replace(/#/g, '-sharp')
       .replace(/[\s_]+/g, '-')
-      .replace(/[^\w-]/g, '');
+      .replace(/[^\p{L}\p{N}-]/gu, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
   }
 
   private formatPost(post: PostWithTags, withContent = false) {
