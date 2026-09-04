@@ -61,6 +61,14 @@ export class PageViewService {
     );
   }
 
+  /**
+   * 봇은 **기록하지 않는다.** 아래에서 조기 return 하므로 저장되는 행의
+   * `isBot` 은 구조적으로 항상 false 다(운영 실측 2026-09-04: 2376행 전부 false).
+   *
+   * 즉 `is_bot` 컬럼은 "봇 여부를 가리는 플래그"가 아니다 — 봇 트래픽은
+   * 애초에 이 테이블에 없다. 컬럼만 보고 "봇도 저장되는데 플래그만 다르다"고
+   * 읽으면 안 된다. 봇까지 세고 싶다면 이 조기 return 을 걷어내야 한다.
+   */
   async track(dto: TrackPageViewInput): Promise<void> {
     const isBot = detectBot(dto.userAgent);
     if (isBot) return;
