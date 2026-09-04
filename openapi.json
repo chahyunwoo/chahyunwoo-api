@@ -7,7 +7,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponseDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -50,7 +57,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -89,7 +103,17 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PopularPostDto"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -128,7 +152,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorStatsDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -167,7 +198,17 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VisitorTimelineDto"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -206,7 +247,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferrerStatsDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -228,7 +276,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatusDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -259,7 +314,17 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminLogDto"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -290,6 +355,23 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "2FA가 꺼져 있으면 쿠키를 설정하고 message만, 켜져 있으면 twoFactorToken을 돌려준다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/MessageResponseDto"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TwoFactorRequiredDto"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -373,6 +455,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponseDto"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -446,6 +538,16 @@
         "operationId": "AuthController_getTwoFactorStatus",
         "parameters": [],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TwoFactorStatusDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -496,6 +598,16 @@
         "operationId": "AuthController_setupTwoFactor",
         "parameters": [],
         "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TwoFactorSetupDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -556,6 +668,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TwoFactorToggleDto"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -647,6 +769,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TwoFactorToggleDto"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -728,6 +860,16 @@
         "operationId": "AuthController_refresh",
         "parameters": [],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -807,7 +949,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionExtendDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -828,8 +977,15 @@
         "operationId": "AuthController_createPreviewToken",
         "parameters": [],
         "responses": {
-          "200": {
-            "description": ""
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewTokenDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -860,7 +1016,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewValidDto"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -4994,6 +5157,23 @@
       }
     },
     "schemas": {
+      "HealthResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "status",
+          "timestamp"
+        ]
+      },
       "TrackPageViewDto": {
         "type": "object",
         "properties": {
@@ -5017,6 +5197,489 @@
         "required": [
           "path",
           "appName"
+        ]
+      },
+      "PostStatsDto": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number",
+            "example": 40
+          },
+          "published": {
+            "type": "number",
+            "example": 38
+          },
+          "draft": {
+            "type": "number",
+            "example": 2
+          }
+        },
+        "required": [
+          "total",
+          "published",
+          "draft"
+        ]
+      },
+      "CategoryStatDto": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "example": "Frontend"
+          },
+          "count": {
+            "type": "number",
+            "example": 8
+          }
+        },
+        "required": [
+          "category",
+          "count"
+        ]
+      },
+      "DashboardPostDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "example": "abc123"
+          },
+          "title": {
+            "type": "string",
+            "example": "글 제목"
+          },
+          "category": {
+            "type": "string",
+            "nullable": true,
+            "example": "Frontend"
+          },
+          "viewCount": {
+            "type": "number",
+            "example": 128
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "slug",
+          "title",
+          "category",
+          "viewCount",
+          "createdAt"
+        ]
+      },
+      "RecentlyUpdatedPostDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "example": "abc123"
+          },
+          "title": {
+            "type": "string",
+            "example": "글 제목"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "slug",
+          "title",
+          "updatedAt"
+        ]
+      },
+      "DashboardDto": {
+        "type": "object",
+        "properties": {
+          "postStats": {
+            "$ref": "#/components/schemas/PostStatsDto"
+          },
+          "categoryStats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CategoryStatDto"
+            }
+          },
+          "recentPosts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardPostDto"
+            }
+          },
+          "recentlyUpdated": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecentlyUpdatedPostDto"
+            }
+          }
+        },
+        "required": [
+          "postStats",
+          "categoryStats",
+          "recentPosts",
+          "recentlyUpdated"
+        ]
+      },
+      "PopularPostDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "example": "abc123"
+          },
+          "title": {
+            "type": "string",
+            "example": "글 제목"
+          },
+          "category": {
+            "type": "string",
+            "nullable": true,
+            "example": "Frontend"
+          },
+          "viewCount": {
+            "type": "number",
+            "example": 128
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "slug",
+          "title",
+          "category",
+          "viewCount",
+          "createdAt"
+        ]
+      },
+      "DailyViewDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "example": "2026-09-04",
+            "description": "YYYY-MM-DD"
+          },
+          "count": {
+            "type": "number",
+            "example": 42
+          }
+        },
+        "required": [
+          "date",
+          "count"
+        ]
+      },
+      "VisitorStatsDto": {
+        "type": "object",
+        "properties": {
+          "totalViews": {
+            "type": "number",
+            "example": 991
+          },
+          "uniqueVisitors": {
+            "type": "number",
+            "example": 210,
+            "description": "IP 기준 고유 방문자"
+          },
+          "daily": {
+            "description": "날짜 오름차순",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DailyViewDto"
+            }
+          }
+        },
+        "required": [
+          "totalViews",
+          "uniqueVisitors",
+          "daily"
+        ]
+      },
+      "VisitDto": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "example": "/blog/abc123",
+            "description": "URL 디코딩된 경로"
+          },
+          "referrer": {
+            "type": "string",
+            "nullable": true,
+            "example": "google.com",
+            "description": "도메인만 남긴다"
+          },
+          "visitedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "path",
+          "referrer",
+          "visitedAt"
+        ]
+      },
+      "VisitorTimelineDto": {
+        "type": "object",
+        "properties": {
+          "ipAddress": {
+            "type": "string",
+            "example": "123.45.*.*",
+            "description": "마스킹된 IP"
+          },
+          "city": {
+            "type": "string",
+            "nullable": true,
+            "example": "Seoul"
+          },
+          "country": {
+            "type": "string",
+            "nullable": true,
+            "example": "KR"
+          },
+          "isBot": {
+            "type": "boolean",
+            "example": false
+          },
+          "totalViews": {
+            "type": "number",
+            "example": 5
+          },
+          "visits": {
+            "description": "최근 방문 우선",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VisitDto"
+            }
+          }
+        },
+        "required": [
+          "ipAddress",
+          "city",
+          "country",
+          "isBot",
+          "totalViews",
+          "visits"
+        ]
+      },
+      "ReferrerSummaryDto": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number",
+            "example": 100
+          },
+          "direct": {
+            "type": "number",
+            "example": 40,
+            "description": "리퍼러 없음"
+          },
+          "search": {
+            "type": "number",
+            "example": 30
+          },
+          "social": {
+            "type": "number",
+            "example": 20
+          },
+          "other": {
+            "type": "number",
+            "example": 10
+          }
+        },
+        "required": [
+          "total",
+          "direct",
+          "search",
+          "social",
+          "other"
+        ]
+      },
+      "ReferrerItemDto": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "example": "google.com"
+          },
+          "category": {
+            "type": "string",
+            "example": "search",
+            "description": "direct | search | social | other"
+          },
+          "count": {
+            "type": "number",
+            "example": 30
+          },
+          "percentage": {
+            "type": "number",
+            "example": 30,
+            "description": "전체 대비 백분율(정수)"
+          }
+        },
+        "required": [
+          "source",
+          "category",
+          "count",
+          "percentage"
+        ]
+      },
+      "ReferrerStatsDto": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/ReferrerSummaryDto"
+          },
+          "referrers": {
+            "description": "count 내림차순",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReferrerItemDto"
+            }
+          }
+        },
+        "required": [
+          "summary",
+          "referrers"
+        ]
+      },
+      "MemoryUsageDto": {
+        "type": "object",
+        "properties": {
+          "heapUsed": {
+            "type": "number",
+            "example": 52428800,
+            "description": "바이트"
+          },
+          "heapTotal": {
+            "type": "number",
+            "example": 83886080
+          },
+          "rss": {
+            "type": "number",
+            "example": 125829120,
+            "description": "Resident Set Size"
+          }
+        },
+        "required": [
+          "heapUsed",
+          "heapTotal",
+          "rss"
+        ]
+      },
+      "SystemStatusDto": {
+        "type": "object",
+        "properties": {
+          "uptime": {
+            "type": "number",
+            "example": 86400000,
+            "description": "프로세스 기동 후 경과 밀리초"
+          },
+          "uptimeFormatted": {
+            "type": "string",
+            "example": "1d 0h 0m"
+          },
+          "database": {
+            "type": "string",
+            "example": "connected",
+            "description": "connected | disconnected"
+          },
+          "memory": {
+            "$ref": "#/components/schemas/MemoryUsageDto"
+          }
+        },
+        "required": [
+          "uptime",
+          "uptimeFormatted",
+          "database",
+          "memory"
+        ]
+      },
+      "AdminLogDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "action": {
+            "type": "string",
+            "example": "create",
+            "description": "create | update | delete 등"
+          },
+          "entity": {
+            "type": "string",
+            "example": "post"
+          },
+          "entityId": {
+            "type": "string",
+            "nullable": true,
+            "example": "abc123"
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true,
+            "description": "글 제목 등 부가 정보"
+          },
+          "username": {
+            "type": "string",
+            "example": "admin"
+          },
+          "ipAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "entity",
+          "entityId",
+          "detail",
+          "username",
+          "ipAddress",
+          "createdAt"
+        ]
+      },
+      "MessageResponseDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Login successful"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "TwoFactorRequiredDto": {
+        "type": "object",
+        "properties": {
+          "requiresTwoFactor": {
+            "type": "boolean",
+            "example": true
+          },
+          "twoFactorToken": {
+            "type": "string",
+            "description": "5분간 유효. 2fa/verify에 그대로 넘긴다."
+          }
+        },
+        "required": [
+          "requiresTwoFactor",
+          "twoFactorToken"
         ]
       },
       "LoginDto": {
@@ -5053,6 +5716,40 @@
           "code"
         ]
       },
+      "TwoFactorStatusDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "example": false
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "TwoFactorSetupDto": {
+        "type": "object",
+        "properties": {
+          "qrCode": {
+            "type": "string",
+            "description": "data URI 형태의 QR 이미지 (신규 설정 시)"
+          },
+          "uri": {
+            "type": "string",
+            "description": "otpauth:// URI (신규 설정 시)"
+          },
+          "configured": {
+            "type": "boolean",
+            "example": true,
+            "description": "이미 설정돼 있을 때만"
+          },
+          "message": {
+            "type": "string",
+            "example": "2FA is already configured"
+          }
+        }
+      },
       "Enable2faDto": {
         "type": "object",
         "properties": {
@@ -5063,6 +5760,66 @@
         },
         "required": [
           "code"
+        ]
+      },
+      "TwoFactorToggleDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "2FA is not enabled",
+            "description": "이미 그 상태일 때만"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "SessionExtendDto": {
+        "type": "object",
+        "properties": {
+          "timeout": {
+            "type": "number",
+            "example": 3600000,
+            "description": "밀리초"
+          }
+        },
+        "required": [
+          "timeout"
+        ]
+      },
+      "PreviewTokenDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "미리보기 URL의 쿼리로 붙인다"
+          },
+          "expiresIn": {
+            "type": "number",
+            "example": 1800,
+            "description": "초 단위"
+          }
+        },
+        "required": [
+          "token",
+          "expiresIn"
+        ]
+      },
+      "PreviewValidDto": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "valid"
         ]
       },
       "PostTagDto": {
