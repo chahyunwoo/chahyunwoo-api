@@ -46,7 +46,7 @@ export class CreatePostDto {
   @ApiPropertyOptional({ default: false })
   @IsOptional()
   @IsBoolean()
-  published?: boolean = false;
+  published?: boolean;
 
   @ApiPropertyOptional({ example: '2026-03-21', description: '발행일 (미입력 시 발행 시점 자동)' })
   @IsOptional()
@@ -57,5 +57,5 @@ export class CreatePostDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  tags?: string[] = [];
+  tags?: string[];
 }

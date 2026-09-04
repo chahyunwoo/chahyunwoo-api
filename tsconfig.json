@@ -2,6 +2,10 @@
   "compilerOptions": {
     "module": "node16",
     "moduleResolution": "node16",
+    // node16 모듈 방식에서 ts-jest 가 요구한다(TS151002). 없으면 테스트 실행마다
+    // 파일 수만큼 경고가 뜬다(#117 로 moduleResolution 을 지정한 뒤 생겼다).
+    // 켜도 컴파일 에러 0건인 것을 확인했다: tsc --noEmit --isolatedModules
+    "isolatedModules": true,
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,

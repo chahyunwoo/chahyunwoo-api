@@ -16,14 +16,14 @@ export class CreateSkillDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  sortOrder?: number = 0;
+  sortOrder?: number;
 
   @ApiPropertyOptional({ default: 0, minimum: 0, maximum: 100 })
   @IsOptional()
   @IsInt()
   @Min(0)
   @Max(100)
-  proficiency?: number = 0;
+  proficiency?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
