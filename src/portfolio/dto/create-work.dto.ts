@@ -25,7 +25,7 @@ export class CreateWorkDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  sortOrder?: number = 0;
+  sortOrder?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -40,7 +40,7 @@ export class CreateWorkDto {
   @ApiPropertyOptional({ default: false })
   @IsOptional()
   @IsBoolean()
-  isCurrent?: boolean = false;
+  isCurrent?: boolean;
 
   @ApiProperty({ type: [String] })
   @IsArray()
@@ -60,7 +60,7 @@ export class CreateWorkDto {
   @ApiPropertyOptional({ default: false })
   @IsOptional()
   @IsBoolean()
-  featured?: boolean = false;
+  featured?: boolean;
 
   @ApiProperty({ type: [WorkTranslationDto] })
   @IsArray()

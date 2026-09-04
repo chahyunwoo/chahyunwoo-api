@@ -34,7 +34,7 @@ export class CreateProjectDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  sortOrder?: number = 0;
+  sortOrder?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -54,7 +54,7 @@ export class CreateProjectDto {
   @ApiPropertyOptional({ default: false })
   @IsOptional()
   @IsBoolean()
-  featured?: boolean = false;
+  featured?: boolean;
 
   @ApiProperty({ type: [ProjectTranslationDto] })
   @IsArray()
