@@ -39,6 +39,14 @@ type PostWithTags = Post & {
 type FinalizeImagesResult = {
   content: string;
   thumbnailUrl?: string | null;
+  /**
+   * 이번 호출에서 실제로 R2에 옮긴 목적지 키.
+   *
+   * 롤백할 때 본문을 다시 파싱해 지울 대상을 유추하면 안 된다 — 부분 실패 시
+   * 본문에는 확정 URL과 아직 못 옮긴 temp URL이 섞여 있어서, 파싱 기반으로
+   * 지우면 재시도에 필요한 temp 원본까지 날아간다.
+   */
+  movedKeys: string[];
   error?: Error;
 };
 
@@ -349,14 +357,33 @@ export class BlogService {
 
   // ─── Category CRUD ─────────────────────────────────────────────────────────
 
+  /**
+   * 카테고리 변경의 부수효과.
+   *
+   * 프론트는 카테고리 목록을 `BLOG_CATEGORIES` 태그로 캐싱하고
+   * `DEFAULT_REVALIDATE = false`라 시간 만료가 없다. 통보하지 않으면
+   * 아이콘·정렬 변경이 사이드바에 **영구히** 반영되지 않는다.
+   *
+   * 이름 변경만 무효화 대상으로 보면 안 된다 — 아이콘과 정렬 순서도
+   * 화면에 그대로 드러나는 값이다.
+   */
+  private async triggerCategorySideEffects(): Promise<void> {
+    await this.cache.invalidate();
+    this.revalidation
+      .trigger('blog')
+      .catch(err => this.logger.warn('blog revalidation failed', err));
+  }
+
   async createCategory(dto: { name: string; icon?: string; sortOrder?: number }) {
-    return this.prisma.category.create({
+    const result = await this.prisma.category.create({
       data: {
         name: dto.name,
         icon: dto.icon ?? DEFAULT_CATEGORY_ICON,
         sortOrder: dto.sortOrder ?? 0,
       },
     });
+    await this.triggerCategorySideEffects();
+    return result;
   }
 
   async updateCategory(id: number, dto: { name?: string; icon?: string; sortOrder?: number }) {
@@ -386,9 +413,7 @@ export class BlogService {
         return result;
       });
 
-      if (dto.name !== undefined) {
-        await this.cache.invalidate();
-      }
+      await this.triggerCategorySideEffects();
 
       return updated;
     } catch (error) {
@@ -411,6 +436,7 @@ export class BlogService {
 
       await tx.category.delete({ where: { id } });
     });
+    await this.triggerCategorySideEffects();
   }
 
   // ─── Write ────────────────────────────────────────────────────────────────
@@ -452,9 +478,23 @@ export class BlogService {
       })) as PostWithTags;
 
       if (finalized.error) {
-        // 이미 옮겨진 이미지의 새 위치는 위에서 DB에 반영했다. 그 뒤에 글을 지운다 —
-        // 순서가 반대면 옮겨진 파일을 가리킬 레코드가 없어져 R2에 고아 파일만 남는다.
         this.logger.error('Image finalization failed, rolling back post', finalized.error);
+
+        // 글을 지우면 옮겨진 파일을 가리킬 레코드가 사라진다. cleanupTempFiles는
+        // `blog/temp/` prefix만 훑으므로 그 파일들은 영원히 회수되지 않는다.
+        // 그래서 레코드를 지우기 **전에** 이번에 옮긴 것만 정리한다.
+        //
+        // 지울 대상을 본문에서 파싱하면 안 된다 — 부분 실패 시 본문에는
+        // 아직 못 옮긴 temp URL도 섞여 있어서, 그것까지 지우면 사용자가
+        // "다시 저장"을 눌러도 원본이 없어 영구히 실패한다.
+        await Promise.all(
+          finalized.movedKeys.map(key =>
+            this.storage
+              .deleteByKey(key)
+              .catch(err => this.logger.warn(`Rollback cleanup failed: ${key}`, err)),
+          ),
+        );
+
         await this.prisma.post
           .delete({ where: { slug } })
           .catch(deleteErr =>
@@ -487,6 +527,20 @@ export class BlogService {
               })
             ).map(pt => pt.tagId)
           : [];
+
+      // 교체당할 옛 썸네일 URL을 미리 확보한다. update 이후에는 알 수 없고,
+      // 지우지 않으면 R2에 영구 고아로 남는다 — cleanupTempFiles는
+      // `blog/temp/` prefix만 훑으므로 `blog/thumbnails/`는 회수 대상이 아니다.
+      // remove()와 updateProfile()은 이미 옛 파일을 지우는데 여기만 빠져 있었다.
+      const previousThumbnailUrl =
+        dto.thumbnailUrl !== undefined
+          ? (
+              await this.prisma.post.findUnique({
+                where: { slug },
+                select: { thumbnailUrl: true },
+              })
+            )?.thumbnailUrl
+          : null;
 
       // DB에 먼저 저장 (temp URL 그대로)
       const post = (await this.prisma.post.update({
@@ -542,11 +596,26 @@ export class BlogService {
           // 매일 3시 StorageCleanupTask가 24시간 뒤 지우므로 다음 날 이미지가 깨진다.
           // 저장 시점에는 정상으로 보여 원인 추적이 어렵다.
           this.logger.error('Image finalization failed during update', finalized.error);
-          await this.triggerPostSideEffects('update', slug, updated.title);
+          // 부분 확정 결과가 이미 커밋됐으므로 캐시 무효화와 revalidation은
+          // 반드시 해야 한다. 다만 action을 'update'로 남기면 어드민 로그에서
+          // 실패한 요청과 성공한 수정이 구별되지 않는다.
+          await this.triggerPostSideEffects('update_partial_failure', slug, updated.title);
           throw new InternalServerErrorException(
             '이미지 확정에 실패했습니다. 글 내용은 저장됐습니다. 이미지를 다시 저장해 주세요.',
           );
         }
+      }
+
+      // 확정까지 성공한 뒤에 옛 썸네일을 지운다. 실패 경로에서 지우면
+      // 사용자가 재시도할 때 되돌아갈 이미지가 없다.
+      if (
+        previousThumbnailUrl &&
+        previousThumbnailUrl !== updated.thumbnailUrl &&
+        !previousThumbnailUrl.startsWith(`${this.storage.getPublicUrl()}/${BLOG_TEMP_PREFIX}/`)
+      ) {
+        this.storage
+          .delete(previousThumbnailUrl)
+          .catch(err => this.logger.warn('Old thumbnail cleanup failed', err));
       }
 
       const result = this.formatPost(updated, true);
@@ -649,21 +718,41 @@ export class BlogService {
     let finalContent = content;
     let finalThumbnail = thumbnailUrl;
 
-    const tempUrls =
-      content.match(
-        new RegExp(`${tempPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^"\\s)]+`, 'g'),
-      ) ?? [];
+    // `match(/g)`는 같은 URL이 본문에 두 번 나오면 **두 번 다** 배열에 넣는다.
+    // 중복을 제거하지 않으면 같은 원본에 move가 두 번 불리는데, move는
+    // Copy → Head → Delete(원본)라서 1회차에 원본이 사라지고 2회차 Copy가
+    // NoSuchKey로 터진다. 즉 도입부와 정리 섹션에 같은 이미지를 넣은 글은
+    // 정상 입력인데도 저장이 실패했다.
+    //
+    // 중복 제거가 `replaceAll`보다 **먼저**다. replaceAll만 넣으면 치환은
+    // 양쪽 다 되지만 move는 여전히 두 번 불려 같은 예외가 난다.
+    const tempUrls = [
+      ...new Set(
+        content.match(
+          new RegExp(`${tempPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^"\\s)]+`, 'g'),
+        ) ?? [],
+      ),
+    ];
+
+    // 실제로 옮긴 목적지를 기록한다. 호출부가 롤백할 때 이 목록만 지우면 되고,
+    // 본문을 다시 파싱해 유추하지 않아도 된다 — 유추하면 아직 옮기지 않은
+    // temp 원본까지 지워서 재시도 가능하던 실패가 복구 불가능해진다.
+    const movedKeys: string[] = [];
 
     for (const tempUrl of tempUrls) {
       const filename = tempUrl.slice(tempPrefix.length);
       const destKey = `blog/posts/${slug}/${filename}`;
       try {
         const newUrl = await this.storage.move(tempUrl, destKey);
-        finalContent = finalContent.replace(tempUrl, newUrl);
+        // 같은 URL이 본문에 여러 번 있으면 전부 바꿔야 한다. `replace`에
+        // 문자열을 넘기면 첫 번째만 치환되어 나머지가 temp를 가리킨 채 남는다.
+        finalContent = finalContent.replaceAll(tempUrl, newUrl);
+        movedKeys.push(destKey);
       } catch (error) {
         return {
           content: finalContent,
           thumbnailUrl: finalThumbnail,
+          movedKeys,
           error: error instanceof Error ? error : new Error(String(error)),
         };
       }
@@ -674,16 +763,18 @@ export class BlogService {
       const destKey = `blog/thumbnails/${generateSlug()}${ext}`;
       try {
         finalThumbnail = await this.storage.move(thumbnailUrl, destKey);
+        movedKeys.push(destKey);
       } catch (error) {
         return {
           content: finalContent,
           thumbnailUrl: finalThumbnail,
+          movedKeys,
           error: error instanceof Error ? error : new Error(String(error)),
         };
       }
     }
 
-    return { content: finalContent, thumbnailUrl: finalThumbnail };
+    return { content: finalContent, thumbnailUrl: finalThumbnail, movedKeys };
   }
 
   private async triggerPostSideEffects(action: string, slug: string, title?: string) {
@@ -729,26 +820,69 @@ export class BlogService {
     });
   }
 
+  /**
+   * 태그 이름 목록을 postTags 연결로 바꾼다.
+   *
+   * 두 단계의 중복 제거가 필요하다:
+   *  1) **슬러그 기준 입력 dedupe.** `["React", "react"]`처럼 이름은 다른데
+   *     슬러그가 같은 값이 한 요청에 들어오면 같은 tagId가 두 번 나오고,
+   *     복합 PK `(post_id, tag_id)` 중복으로 P2002가 난다. 그 P2002를 호출부가
+   *     "Slug collision. Please retry."로 오역해, 사용자는 재시도해도 영원히
+   *     같은 실패를 본다.
+   *  2) **빈 슬러그 거부.** 이름이 기호뿐이면 슬러그가 비는데, 그대로 두면
+   *     서로 다른 태그가 전부 슬러그 "" 한 행으로 합쳐진다.
+   *
+   * upsert를 병렬로 돌리지 않는 이유: 같은 슬러그가 동시에 들어오면 upsert가
+   * 원자적이지 않아 경합한다. 태그 수는 글당 한 자릿수라 순차로 돌아도 비용이
+   * 무시할 만하다.
+   */
   private async resolveTagConnections(tagNames: string[]) {
-    return Promise.all(
-      tagNames.map(async name => {
-        const slug = this.slugifyTag(name);
-        const tag = await this.prisma.tag.upsert({
-          where: { slug },
-          create: { name, slug },
-          update: {},
-        });
-        return { tagId: tag.id };
-      }),
-    );
+    const bySlug = new Map<string, string>();
+    for (const name of tagNames) {
+      const slug = this.slugifyTag(name);
+      if (!slug) continue; // 기호뿐인 이름은 태그로 만들지 않는다
+      if (!bySlug.has(slug)) bySlug.set(slug, name);
+    }
+
+    const connections: Array<{ tagId: number }> = [];
+    for (const [slug, name] of bySlug) {
+      const tag = await this.prisma.tag.upsert({
+        where: { slug },
+        create: { name, slug },
+        update: {},
+      });
+      connections.push({ tagId: tag.id });
+    }
+    return connections;
   }
 
+  /**
+   * 태그 이름을 슬러그로 바꾼다.
+   *
+   * `[^\w-]`로 지우면 안 된다 — `\w`는 ASCII만 인정하므로:
+   *   "C++" → "c",  "C#" → "c"    (서로 다른 태그가 같은 슬러그로 충돌)
+   *   "노드" → "",  "리액트" → ""  (한글 태그가 전부 빈 슬러그 하나로 합쳐짐)
+   * `resolveTagConnections`가 `upsert({ where: { slug } })`를 쓰므로 충돌하면
+   * 두 번째 태그가 **첫 번째 태그의 행에 조용히 연결**되어 화면에 엉뚱한
+   * 이름이 뜬다.
+   *
+   * 유니코드 문자/숫자를 보존하고, 기술 이름에서 의미를 지니는 `+`/`#`은
+   * 지우지 않고 `-plus`/`-sharp`로 옮긴다 — 그냥 지우면 "C++"와 "C#"가 둘 다
+   * "c"가 되어 (그리고 "C"와도) 충돌한다.
+   *
+   * 기존 데이터 영향 없음: 운영 태그 75개는 전부 ASCII라 새 규칙에서도 슬러그가
+   * 그대로다(2026-09-04 전수 대조, 변경 0건). 그래서 마이그레이션이 필요 없다.
+   */
   private slugifyTag(name: string): string {
     return name
       .toLowerCase()
       .trim()
+      .replace(/\+/g, '-plus')
+      .replace(/#/g, '-sharp')
       .replace(/[\s_]+/g, '-')
-      .replace(/[^\w-]/g, '');
+      .replace(/[^\p{L}\p{N}-]/gu, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
   }
 
   private formatPost(post: PostWithTags, withContent = false) {
