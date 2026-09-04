@@ -121,7 +121,9 @@ describe('blog 응답 스키마', () => {
       ['PostSearchResponseDto', ['posts', 'total', 'query', 'grouped']],
       ['RelatedPostsResponseDto', ['related', 'recommended']],
       ['TagListResponseDto', ['tags', 'total']],
-      ['CategoryWithTagsDto', ['category', 'icon', 'count', 'recent', 'tags']],
+      // id가 빠지면 어드민이 카테고리를 수정·삭제할 수단을 잃는다
+      // (PUT|DELETE /categories/{id}가 ParseIntPipe로 id를 받는다)
+      ['CategoryWithTagsDto', ['id', 'category', 'icon', 'count', 'recent', 'tags']],
       ['CategoryDto', ['id', 'name', 'icon', 'sortOrder']],
       ['UploadImageResponseDto', ['url']],
       ['TagCountDto', ['name', 'slug', 'count']],
