@@ -257,11 +257,15 @@ export class AuthService {
 
   // ─── Preview Token ────────────────────────────────────────────────────────
 
-  private readonly previewTokens = new Map<string, number>();
+  // 토큰 -> { 만료시각, 대상 slug }
+  // slug 를 함께 담는 이유: 예전에는 만료시각만 저장해 한 번 발급된 토큰으로
+  // **모든** 비공개 글을 열 수 있었다. 토큰이 새면 피해가 그 글 하나로
+  // 그치도록 발급 시점의 slug 에 묶는다.
+  private readonly previewTokens = new Map<string, { expiresAt: number; slug: string }>();
   private static readonly PREVIEW_TOKEN_TTL = 30 * 60 * 1000; // 30 minutes
   private static readonly MAX_PREVIEW_TOKENS = 10;
 
-  createPreviewToken(): { token: string; expiresIn: number } {
+  createPreviewToken(slug: string): { token: string; expiresIn: number } {
     this.cleanupPreviewTokens();
 
     if (this.previewTokens.size >= AuthService.MAX_PREVIEW_TOKENS) {
@@ -270,7 +274,10 @@ export class AuthService {
     }
 
     const token = randomBytes(32).toString('hex');
-    this.previewTokens.set(token, Date.now() + AuthService.PREVIEW_TOKEN_TTL);
+    this.previewTokens.set(token, {
+      expiresAt: Date.now() + AuthService.PREVIEW_TOKEN_TTL,
+      slug,
+    });
 
     return { token, expiresIn: 1800 };
   }
@@ -285,12 +292,17 @@ export class AuthService {
     }
   }
 
-  verifyPreviewToken(token: string): boolean {
-    const expiresAt = this.previewTokens.get(token);
-    if (!expiresAt || expiresAt < Date.now()) {
+  /**
+   * `slug` 를 넘기면 그 글에 대해 발급된 토큰인지까지 확인한다.
+   * 넘기지 않으면 유효성(존재·만료)만 본다 — 어드민의 토큰 상태 확인용이다.
+   */
+  verifyPreviewToken(token: string, slug?: string): boolean {
+    const entry = this.previewTokens.get(token);
+    if (!entry || entry.expiresAt < Date.now()) {
       this.previewTokens.delete(token);
       return false;
     }
+    if (slug !== undefined && entry.slug !== slug) return false;
     return true;
   }
 
@@ -300,8 +312,8 @@ export class AuthService {
 
   private cleanupPreviewTokens(): void {
     const now = Date.now();
-    for (const [token, expiresAt] of this.previewTokens) {
-      if (expiresAt < now) this.previewTokens.delete(token);
+    for (const [token, entry] of this.previewTokens) {
+      if (entry.expiresAt < now) this.previewTokens.delete(token);
     }
   }
 

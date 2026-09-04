@@ -976,6 +976,16 @@
       "post": {
         "operationId": "AuthController_createPreviewToken",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePreviewTokenDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": "",
@@ -5802,6 +5812,18 @@
         },
         "required": [
           "timeout"
+        ]
+      },
+      "CreatePreviewTokenDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "example": "my-post-slug"
+          }
+        },
+        "required": [
+          "slug"
         ]
       },
       "PreviewTokenDto": {

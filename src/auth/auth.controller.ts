@@ -33,6 +33,7 @@ import {
   TwoFactorStatusDto,
   TwoFactorToggleDto,
 } from './dto/auth-response.dto';
+import { CreatePreviewTokenDto } from './dto/create-preview-token.dto';
 import { Enable2faDto } from './dto/enable-2fa.dto';
 import { LoginDto } from './dto/login.dto';
 import { Verify2faDto } from './dto/verify-2fa.dto';
@@ -211,15 +212,19 @@ export class AuthController {
   @Post('preview-token')
   @ApiCreatedResponse({ type: PreviewTokenDto })
   @HttpCode(HttpStatus.OK)
-  createPreviewToken() {
-    return this.authService.createPreviewToken();
+  createPreviewToken(@Body() dto: CreatePreviewTokenDto) {
+    return this.authService.createPreviewToken(dto.slug);
   }
 
   @Public()
   @Get('verify-preview')
   @ApiOkResponse({ type: PreviewValidDto })
-  verifyPreview(@Query('token') token: string, @Res() reply: FastifyReply) {
-    const valid = this.authService.verifyPreviewToken(token);
+  verifyPreview(
+    @Query('token') token: string,
+    @Query('slug') slug: string | undefined,
+    @Res() reply: FastifyReply,
+  ) {
+    const valid = this.authService.verifyPreviewToken(token, slug);
     if (!valid) {
       return reply.status(HttpStatus.UNAUTHORIZED).send({
         statusCode: 401,
