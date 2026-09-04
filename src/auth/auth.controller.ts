@@ -1,6 +1,13 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApiBearerAuth, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCookieAuth,
+  ApiCreatedResponse,
+  ApiExtraModels,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { Public } from '../common/decorators/public.decorator';
@@ -16,6 +23,16 @@ import {
   SESSION_TIMEOUT_COOKIE,
 } from './auth.constants';
 import { AuthService } from './auth.service';
+import {
+  MessageResponseDto,
+  PreviewTokenDto,
+  PreviewValidDto,
+  SessionExtendDto,
+  TwoFactorRequiredDto,
+  TwoFactorSetupDto,
+  TwoFactorStatusDto,
+  TwoFactorToggleDto,
+} from './dto/auth-response.dto';
 import { Enable2faDto } from './dto/enable-2fa.dto';
 import { LoginDto } from './dto/login.dto';
 import { Verify2faDto } from './dto/verify-2fa.dto';
@@ -37,6 +54,17 @@ export class AuthController {
   @Public()
   @SkipApiKey()
   @Post('login')
+  @ApiOkResponse({
+    description:
+      '2FA가 꺼져 있으면 쿠키를 설정하고 message만, 켜져 있으면 twoFactorToken을 돌려준다.',
+    schema: {
+      oneOf: [
+        { $ref: '#/components/schemas/MessageResponseDto' },
+        { $ref: '#/components/schemas/TwoFactorRequiredDto' },
+      ],
+    },
+  })
+  @ApiExtraModels(MessageResponseDto, TwoFactorRequiredDto)
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @ApiUnauthorized()
@@ -55,6 +83,7 @@ export class AuthController {
   @Public()
   @SkipApiKey()
   @Post('2fa/verify')
+  @ApiOkResponse({ type: MessageResponseDto })
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @ApiUnauthorized()
@@ -76,6 +105,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Get('2fa/status')
+  @ApiOkResponse({ type: TwoFactorStatusDto })
   @ApiUnauthorized()
   getTwoFactorStatus() {
     return this.authService.getTwoFactorStatus();
@@ -84,6 +114,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Post('2fa/setup')
+  @ApiCreatedResponse({ type: TwoFactorSetupDto })
   @HttpCode(HttpStatus.OK)
   @ApiUnauthorized()
   setupTwoFactor() {
@@ -93,6 +124,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Post('2fa/disable')
+  @ApiCreatedResponse({ type: TwoFactorToggleDto })
   @HttpCode(HttpStatus.OK)
   @ApiUnauthorized()
   @ApiBadRequest()
@@ -103,6 +135,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Post('2fa/enable')
+  @ApiCreatedResponse({ type: TwoFactorToggleDto })
   @HttpCode(HttpStatus.OK)
   @ApiUnauthorized()
   @ApiBadRequest()
@@ -113,6 +146,7 @@ export class AuthController {
   @Public()
   @SkipApiKey()
   @Post('refresh')
+  @ApiOkResponse({ type: MessageResponseDto })
   @HttpCode(HttpStatus.OK)
   @ApiUnauthorized()
   async refresh(@Req() req: CookieRequest, @Res() reply: FastifyReply) {
@@ -156,6 +190,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Post('session/extend')
+  @ApiOkResponse({ type: SessionExtendDto })
   @HttpCode(HttpStatus.OK)
   async extendSession(@Res() reply: FastifyReply) {
     reply.setCookie(SESSION_TIMEOUT_COOKIE, String(Date.now() + SESSION_TIMEOUT * 1000), {
@@ -174,6 +209,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Post('preview-token')
+  @ApiCreatedResponse({ type: PreviewTokenDto })
   @HttpCode(HttpStatus.OK)
   createPreviewToken() {
     return this.authService.createPreviewToken();
@@ -181,6 +217,7 @@ export class AuthController {
 
   @Public()
   @Get('verify-preview')
+  @ApiOkResponse({ type: PreviewValidDto })
   verifyPreview(@Query('token') token: string, @Res() reply: FastifyReply) {
     const valid = this.authService.verifyPreviewToken(token);
     if (!valid) {

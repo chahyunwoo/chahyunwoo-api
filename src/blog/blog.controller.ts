@@ -17,6 +17,7 @@ import {
   ApiBearerAuth,
   ApiConsumes,
   ApiCookieAuth,
+  ApiCreatedResponse,
   ApiOkResponse,
   ApiSecurity,
   ApiTags,
@@ -26,15 +27,25 @@ import { Public } from '../common/decorators/public.decorator';
 import {
   ApiBadRequest,
   ApiConflict,
+  ApiNoContent,
   ApiNotFound,
   ApiUnauthorized,
 } from '../common/swagger/error-responses';
 import { safeExtension, validateAndReadFile } from '../common/utils/file-validation.util';
 import type { MultipartRequest } from '../types/fastify.d';
 import { BlogService } from './blog.service';
+import {
+  CategoryDto,
+  CategoryWithTagsDto,
+  PostDetailDto,
+  PostSearchResponseDto,
+  RelatedPostsResponseDto,
+  TagListResponseDto,
+  UploadImageResponseDto,
+} from './dto/blog-response.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreatePostDto } from './dto/create-post.dto';
-import { PostListResponseDto } from './dto/post-list-response.dto';
+import { PostListResponseDto, PostSummaryDto } from './dto/post-list-response.dto';
 import { PostQueryDto, RecentQueryDto, SearchQueryDto, TagQueryDto } from './dto/post-query.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 
@@ -49,6 +60,7 @@ export class BlogController {
   @Public()
   @ApiSecurity('api-key')
   @Get('posts/search')
+  @ApiOkResponse({ type: PostSearchResponseDto })
   @ApiBadRequest('q must be at least 2 characters')
   search(@Query() query: SearchQueryDto) {
     return this.blogService.search(query);
@@ -66,6 +78,7 @@ export class BlogController {
   @Public()
   @ApiSecurity('api-key')
   @Get('posts/recent')
+  @ApiOkResponse({ type: [PostSummaryDto] })
   getRecentPosts(@Query() query: RecentQueryDto) {
     return this.blogService.getRecentPosts(query.limit);
   }
@@ -73,6 +86,7 @@ export class BlogController {
   @Public()
   @ApiSecurity('api-key')
   @Get('categories')
+  @ApiOkResponse({ type: [CategoryWithTagsDto] })
   getCategories() {
     return this.blogService.getCategories();
   }
@@ -80,6 +94,7 @@ export class BlogController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Post('categories')
+  @ApiCreatedResponse({ type: CategoryDto })
   @HttpCode(HttpStatus.CREATED)
   createCategory(@Body() dto: CreateCategoryDto) {
     return this.blogService.createCategory(dto);
@@ -88,6 +103,7 @@ export class BlogController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Put('categories/:id')
+  @ApiOkResponse({ type: CategoryDto })
   updateCategory(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateCategoryDto) {
     return this.blogService.updateCategory(id, dto);
   }
@@ -103,6 +119,7 @@ export class BlogController {
   @Public()
   @ApiSecurity('api-key')
   @Get('tags')
+  @ApiOkResponse({ type: TagListResponseDto })
   getTags(@Query() query: TagQueryDto) {
     return this.blogService.getTags(query);
   }
@@ -110,6 +127,7 @@ export class BlogController {
   @Public()
   @ApiSecurity('api-key')
   @Get('posts/:slug')
+  @ApiOkResponse({ type: PostDetailDto })
   @ApiNotFound('Post')
   findOne(@Param('slug') slug: string, @Req() req: MultipartRequest) {
     const isAdmin = this.authService.isAuthenticated(req.cookies?.access_token);
@@ -119,6 +137,7 @@ export class BlogController {
   @Public()
   @ApiSecurity('api-key')
   @Get('posts/:slug/preview')
+  @ApiOkResponse({ type: PostDetailDto })
   @ApiNotFound('Post')
   @ApiUnauthorized()
   async findOnePreview(@Param('slug') slug: string, @Query('token') token: string) {
@@ -131,6 +150,7 @@ export class BlogController {
   @Public()
   @ApiSecurity('api-key')
   @Get('posts/:slug/related')
+  @ApiOkResponse({ type: RelatedPostsResponseDto })
   @ApiNotFound('Post')
   getRelatedPosts(@Param('slug') slug: string) {
     return this.blogService.getRelatedPosts(slug);
@@ -139,6 +159,7 @@ export class BlogController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Post('posts')
+  @ApiCreatedResponse({ type: PostDetailDto })
   @HttpCode(HttpStatus.CREATED)
   @ApiUnauthorized()
   @ApiBadRequest()
@@ -150,6 +171,7 @@ export class BlogController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Put('posts/:slug')
+  @ApiOkResponse({ type: PostDetailDto })
   @ApiUnauthorized()
   @ApiNotFound('Post')
   update(@Param('slug') slug: string, @Body() dto: UpdatePostDto) {
@@ -160,6 +182,7 @@ export class BlogController {
   @ApiCookieAuth()
   @Delete('posts/:slug')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContent()
   @ApiUnauthorized()
   @ApiNotFound('Post')
   remove(@Param('slug') slug: string) {
@@ -169,6 +192,7 @@ export class BlogController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Post('images')
+  @ApiCreatedResponse({ type: UploadImageResponseDto })
   @ApiConsumes('multipart/form-data')
   @ApiUnauthorized()
   @ApiBadRequest('No file provided or invalid file type')
