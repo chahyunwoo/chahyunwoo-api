@@ -2331,7 +2331,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProfileWithTranslationsDto"
+                  "$ref": "#/components/schemas/ProfileDto"
                 }
               }
             }

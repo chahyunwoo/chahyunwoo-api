@@ -211,10 +211,22 @@ export class PortfolioController {
     return this.portfolioService.deleteLocale(id);
   }
 
+  /**
+   * 응답 타입은 `ProfileDto`다 — `ProfileWithTranslationsDto`가 아니다.
+   *
+   * 서비스가 `getProfile(DEFAULT_LOCALE)`를 돌려주므로 실제 응답에는
+   * `jobTitle`/`introduction`이 있고 `translations`는 **없다**. 예전에는
+   * `ProfileWithTranslationsDto`로 선언돼 있어 스펙이 거짓말을 하고 있었다.
+   *
+   * 지금 프론트가 안 깨지는 이유는 이 라우트만 생성 타입을 쓰지 않고 손으로
+   * 타이핑해 뒀기 때문이다(admin `portfolio.queries.ts`의 `PortfolioProfile`).
+   * 그 손 타이핑이 런타임과 일치해서 가려져 있었고, 생성 타입으로 옮기는
+   * 순간 컴파일은 통과하는데 런타임에 `translations`가 undefined가 됐을 것이다.
+   */
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Put('profile')
-  @ApiOkResponse({ type: ProfileWithTranslationsDto })
+  @ApiOkResponse({ type: ProfileDto })
   @ApiUnauthorized()
   updateProfile(@Body() dto: UpdateProfileDto) {
     return this.portfolioService.updateProfile(dto);
