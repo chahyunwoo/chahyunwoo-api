@@ -12,12 +12,21 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiConsumes, ApiCookieAuth, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiCookieAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../common/decorators/public.decorator';
 import {
   ApiBadRequest,
   ApiConflict,
+  ApiNoContent,
   ApiNotFound,
   ApiUnauthorized,
 } from '../common/swagger/error-responses';
@@ -41,6 +50,25 @@ import {
   UpdateSkillDto,
   UpdateWorkDto,
 } from './dto';
+import {
+  ContactMessageDto,
+  ContactResultDto,
+  EducationDto,
+  EducationRecordDto,
+  ExperienceDto,
+  ExperienceRecordDto,
+  LocaleDto,
+  ProfileDto,
+  ProfileWithTranslationsDto,
+  ProjectDto,
+  ProjectRecordDto,
+  SkillGroupDto,
+  SkillRecordDto,
+  UploadUrlResponseDto,
+  WorkDetailDto,
+  WorkDto,
+  WorkRecordDto,
+} from './dto/portfolio-response.dto';
 import { ValidateLocalePipe } from './pipes/validate-locale.pipe';
 import { PortfolioService } from './portfolio.service';
 
@@ -54,6 +82,7 @@ export class PortfolioController {
   @Public()
   @ApiSecurity('api-key')
   @Get('locales')
+  @ApiOkResponse({ type: [LocaleDto] })
   getLocales() {
     return this.portfolioService.getLocales();
   }
@@ -61,6 +90,7 @@ export class PortfolioController {
   @Public()
   @ApiSecurity('api-key')
   @Get('profile')
+  @ApiOkResponse({ type: ProfileDto })
   @ApiNotFound('Profile')
   @ApiBadRequest('Unsupported locale')
   getProfile(@Query(ValidateLocalePipe) query: LocaleQueryDto) {
@@ -70,6 +100,7 @@ export class PortfolioController {
   @Public()
   @ApiSecurity('api-key')
   @Get('profile/all')
+  @ApiOkResponse({ type: ProfileWithTranslationsDto })
   @ApiNotFound('Profile')
   getProfileWithTranslations() {
     return this.portfolioService.getProfileWithTranslations();
@@ -78,6 +109,7 @@ export class PortfolioController {
   @Public()
   @ApiSecurity('api-key')
   @Get('experiences')
+  @ApiOkResponse({ type: [ExperienceDto] })
   @ApiBadRequest('Unsupported locale')
   getExperiences(@Query(ValidateLocalePipe) query: LocaleQueryDto) {
     return this.portfolioService.getExperiences(query.locale ?? 'ko');
@@ -86,6 +118,7 @@ export class PortfolioController {
   @Public()
   @ApiSecurity('api-key')
   @Get('projects')
+  @ApiOkResponse({ type: [ProjectDto] })
   @ApiBadRequest('Unsupported locale')
   getProjects(@Query(ValidateLocalePipe) query: GetProjectsQueryDto) {
     return this.portfolioService.getProjects(query.locale ?? 'ko', query.featured);
@@ -94,6 +127,7 @@ export class PortfolioController {
   @Public()
   @ApiSecurity('api-key')
   @Get('skills')
+  @ApiOkResponse({ type: [SkillGroupDto] })
   getSkills() {
     return this.portfolioService.getSkills();
   }
@@ -101,6 +135,7 @@ export class PortfolioController {
   @Public()
   @ApiSecurity('api-key')
   @Get('works')
+  @ApiOkResponse({ type: [WorkDto] })
   @ApiBadRequest('Unsupported locale')
   getWorks(@Query(ValidateLocalePipe) query: GetWorksQueryDto) {
     return this.portfolioService.getWorks(query.locale ?? 'ko', query.type);
@@ -109,6 +144,7 @@ export class PortfolioController {
   @Public()
   @ApiSecurity('api-key')
   @Get('works/:id')
+  @ApiOkResponse({ type: WorkDetailDto })
   @ApiNotFound('Work')
   getWorkById(@Param('id', ParseIntPipe) id: number) {
     return this.portfolioService.getWorkById(id);
@@ -117,6 +153,7 @@ export class PortfolioController {
   @Public()
   @ApiSecurity('api-key')
   @Get('experiences/:id')
+  @ApiOkResponse({ type: ExperienceRecordDto })
   @ApiNotFound('Experience')
   getExperienceById(@Param('id', ParseIntPipe) id: number) {
     return this.portfolioService.getExperienceById(id);
@@ -125,6 +162,7 @@ export class PortfolioController {
   @Public()
   @ApiSecurity('api-key')
   @Get('projects/:id')
+  @ApiOkResponse({ type: ProjectRecordDto })
   @ApiNotFound('Project')
   getProjectById(@Param('id', ParseIntPipe) id: number) {
     return this.portfolioService.getProjectById(id);
@@ -133,6 +171,7 @@ export class PortfolioController {
   @Public()
   @ApiSecurity('api-key')
   @Get('education/:id')
+  @ApiOkResponse({ type: EducationRecordDto })
   @ApiNotFound('Education')
   getEducationById(@Param('id', ParseIntPipe) id: number) {
     return this.portfolioService.getEducationById(id);
@@ -141,6 +180,7 @@ export class PortfolioController {
   @Public()
   @ApiSecurity('api-key')
   @Get('education')
+  @ApiOkResponse({ type: [EducationDto] })
   @ApiBadRequest('Unsupported locale')
   getEducation(@Query(ValidateLocalePipe) query: LocaleQueryDto) {
     return this.portfolioService.getEducation(query.locale ?? 'ko');
@@ -151,6 +191,7 @@ export class PortfolioController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Post('locales')
+  @ApiCreatedResponse({ type: LocaleDto })
   @HttpCode(HttpStatus.CREATED)
   @ApiUnauthorized()
   @ApiBadRequest()
@@ -163,6 +204,7 @@ export class PortfolioController {
   @ApiCookieAuth()
   @Delete('locales/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContent()
   @ApiUnauthorized()
   @ApiNotFound('Locale')
   deleteLocale(@Param('id', ParseIntPipe) id: number) {
@@ -172,6 +214,7 @@ export class PortfolioController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Put('profile')
+  @ApiOkResponse({ type: ProfileWithTranslationsDto })
   @ApiUnauthorized()
   updateProfile(@Body() dto: UpdateProfileDto) {
     return this.portfolioService.updateProfile(dto);
@@ -180,6 +223,7 @@ export class PortfolioController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Post('profile/image')
+  @ApiCreatedResponse({ type: UploadUrlResponseDto })
   @ApiConsumes('multipart/form-data')
   @ApiUnauthorized()
   @ApiBadRequest('No file provided or invalid file type')
@@ -195,6 +239,7 @@ export class PortfolioController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Post('profile/icon')
+  @ApiCreatedResponse({ type: UploadUrlResponseDto })
   @ApiConsumes('multipart/form-data')
   @ApiUnauthorized()
   @ApiBadRequest('No file provided or invalid file type')
@@ -210,6 +255,7 @@ export class PortfolioController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Post('experiences')
+  @ApiCreatedResponse({ type: ExperienceRecordDto })
   @HttpCode(HttpStatus.CREATED)
   @ApiUnauthorized()
   @ApiBadRequest()
@@ -220,6 +266,7 @@ export class PortfolioController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Put('experiences/:id')
+  @ApiOkResponse({ type: ExperienceRecordDto })
   @ApiUnauthorized()
   @ApiNotFound('Experience')
   updateExperience(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateExperienceDto) {
@@ -230,6 +277,7 @@ export class PortfolioController {
   @ApiCookieAuth()
   @Delete('experiences/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContent()
   @ApiUnauthorized()
   @ApiNotFound('Experience')
   deleteExperience(@Param('id', ParseIntPipe) id: number) {
@@ -239,6 +287,7 @@ export class PortfolioController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Post('projects')
+  @ApiCreatedResponse({ type: ProjectRecordDto })
   @HttpCode(HttpStatus.CREATED)
   @ApiUnauthorized()
   @ApiBadRequest()
@@ -249,6 +298,7 @@ export class PortfolioController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Put('projects/:id')
+  @ApiOkResponse({ type: ProjectRecordDto })
   @ApiUnauthorized()
   @ApiNotFound('Project')
   updateProject(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProjectDto) {
@@ -259,6 +309,7 @@ export class PortfolioController {
   @ApiCookieAuth()
   @Delete('projects/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContent()
   @ApiUnauthorized()
   @ApiNotFound('Project')
   deleteProject(@Param('id', ParseIntPipe) id: number) {
@@ -268,6 +319,7 @@ export class PortfolioController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Post('skills')
+  @ApiCreatedResponse({ type: SkillRecordDto })
   @HttpCode(HttpStatus.CREATED)
   @ApiUnauthorized()
   @ApiBadRequest()
@@ -278,6 +330,7 @@ export class PortfolioController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Put('skills/:id')
+  @ApiOkResponse({ type: SkillRecordDto })
   @ApiUnauthorized()
   @ApiNotFound('Skill')
   updateSkill(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSkillDto) {
@@ -288,6 +341,7 @@ export class PortfolioController {
   @ApiCookieAuth()
   @Delete('skills/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContent()
   @ApiUnauthorized()
   @ApiNotFound('Skill')
   deleteSkill(@Param('id', ParseIntPipe) id: number) {
@@ -297,6 +351,7 @@ export class PortfolioController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Post('education')
+  @ApiCreatedResponse({ type: EducationRecordDto })
   @HttpCode(HttpStatus.CREATED)
   @ApiUnauthorized()
   @ApiBadRequest()
@@ -307,6 +362,7 @@ export class PortfolioController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Put('education/:id')
+  @ApiOkResponse({ type: EducationRecordDto })
   @ApiUnauthorized()
   @ApiNotFound('Education')
   updateEducation(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateEducationDto) {
@@ -317,6 +373,7 @@ export class PortfolioController {
   @ApiCookieAuth()
   @Delete('education/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContent()
   @ApiUnauthorized()
   @ApiNotFound('Education')
   deleteEducation(@Param('id', ParseIntPipe) id: number) {
@@ -326,6 +383,7 @@ export class PortfolioController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Post('works')
+  @ApiCreatedResponse({ type: WorkRecordDto })
   @HttpCode(HttpStatus.CREATED)
   @ApiUnauthorized()
   @ApiBadRequest()
@@ -336,6 +394,7 @@ export class PortfolioController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Put('works/:id')
+  @ApiOkResponse({ type: WorkRecordDto })
   @ApiUnauthorized()
   @ApiNotFound('Work')
   updateWork(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateWorkDto) {
@@ -346,6 +405,7 @@ export class PortfolioController {
   @ApiCookieAuth()
   @Delete('works/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContent()
   @ApiUnauthorized()
   @ApiNotFound('Work')
   deleteWork(@Param('id', ParseIntPipe) id: number) {
@@ -357,6 +417,7 @@ export class PortfolioController {
   @Public()
   @ApiSecurity('api-key')
   @Post('contact')
+  @ApiCreatedResponse({ type: ContactResultDto })
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60_000, limit: 2 } })
   @ApiBadRequest()
@@ -367,6 +428,7 @@ export class PortfolioController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Get('contacts')
+  @ApiOkResponse({ type: [ContactMessageDto] })
   @ApiUnauthorized()
   getContacts(@Query('limit', new ParseIntPipe({ optional: true })) limit?: number) {
     return this.portfolioService.getContacts(limit);
@@ -375,6 +437,7 @@ export class PortfolioController {
   @ApiBearerAuth()
   @ApiCookieAuth()
   @Put('contacts/:id/read')
+  @ApiOkResponse({ type: ContactMessageDto })
   @ApiUnauthorized()
   @ApiNotFound('Contact message')
   markContactRead(@Param('id', ParseIntPipe) id: number) {
@@ -385,6 +448,7 @@ export class PortfolioController {
   @ApiCookieAuth()
   @Delete('contacts/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContent()
   @ApiUnauthorized()
   @ApiNotFound('Contact message')
   deleteContact(@Param('id', ParseIntPipe) id: number) {
