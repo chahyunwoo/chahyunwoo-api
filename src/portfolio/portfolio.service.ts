@@ -770,6 +770,14 @@ export class PortfolioService {
         },
       });
       if (recent) {
+        // 저장하지 않고 성공을 반환한다. 공격자에게 중복 여부를 알려주지 않기
+        // 위해서다. 다만 그 대가로 "success: true 인데 저장이 안 된 경우"가
+        // 생기므로, 최소한 로그로는 남겨 추적 가능하게 한다. 이게 없으면
+        // 정상 사용자가 내용을 고쳐 다시 보낸 문의가 조용히 사라지고,
+        // 서버 어디에도 흔적이 남지 않는다.
+        this.logger.warn(
+          `Contact skipped by 10min cooldown (email=${dto.email}, lastAt=${recent.createdAt.toISOString()})`,
+        );
         return { success: true, message: 'Message sent successfully' };
       }
 
