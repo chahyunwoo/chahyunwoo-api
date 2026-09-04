@@ -11,7 +11,9 @@ interface IpApiResponse {
 
 async function lookup(ip: string): Promise<{ city: string | null; country: string | null }> {
   try {
-    const res = await fetch(`http://ip-api.com/json/${ip}?fields=status,city,regionName,countryCode`);
+    const res = await fetch(
+      `http://ip-api.com/json/${ip}?fields=status,city,regionName,countryCode`,
+    );
     const data = (await res.json()) as IpApiResponse;
     if (data.status !== 'success') return { city: null, country: null };
     return {

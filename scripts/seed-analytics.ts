@@ -57,7 +57,8 @@ async function main() {
       const dailyCount = randomInt(5, 50);
       for (let i = 0; i < dailyCount; i++) {
         const app = randomItem(apps);
-        const paths = app === 'blog' ? blogPaths : app === 'portfolio' ? portfolioPaths : adminPaths;
+        const paths =
+          app === 'blog' ? blogPaths : app === 'portfolio' ? portfolioPaths : adminPaths;
         const date = new Date();
         date.setDate(date.getDate() - daysAgo);
         date.setHours(randomInt(0, 23), randomInt(0, 59), randomInt(0, 59));
