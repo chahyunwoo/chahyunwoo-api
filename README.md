@@ -46,10 +46,17 @@ cp .env.example .env
 make hash-password PASSWORD=yourpassword
 
 # PostgreSQL 컨테이너 실행
-docker run -d --name chahyunwoo-api-db \
+#
+# 컨테이너명과 DB명에 -local / _local 을 붙인다. 운영(맥미니)의 컨테이너는
+# api-server-db-1, DB명은 hyunwoo 다. 로컬을 같은 이름으로 만들면
+# `docker exec <이름> psql -d hyunwoo` 가 양쪽 모두에서 성공하기 때문에
+# 접속에 성공했다는 사실이 올바른 대상에 붙었다는 증거가 되지 못한다.
+# 실제로 5개월 묵은 로컬 스냅샷을 운영 DB로 착각해 "데이터가 유실됐다"고
+# 진단한 사고가 있었다(2026-09-04).
+docker run -d --name chahyunwoo-api-db-local \
   -e POSTGRES_USER=chwzp \
   -e POSTGRES_PASSWORD=yourpw \
-  -e POSTGRES_DB=hyunwoo \
+  -e POSTGRES_DB=hyunwoo_local \
   -p 5432:5432 postgres:16
 
 # DB 마이그레이션
