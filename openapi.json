@@ -5512,8 +5512,13 @@
           },
           "category": {
             "type": "string",
-            "example": "search",
-            "description": "direct | search | social | other"
+            "enum": [
+              "direct",
+              "search",
+              "social",
+              "other"
+            ],
+            "example": "search"
           },
           "count": {
             "type": "number",

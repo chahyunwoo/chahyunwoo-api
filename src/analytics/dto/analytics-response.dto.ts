@@ -151,8 +151,13 @@ export class ReferrerItemDto {
   @ApiProperty({ example: 'google.com' })
   source: string;
 
-  @ApiProperty({ example: 'search', description: 'direct | search | social | other' })
-  category: string;
+  /**
+   * 자유 문자열이 아니라 `categorizeReferrer()`가 넷 중 하나로만 채운다.
+   * 프론트가 이 값을 색·라벨 매핑의 키로 쓰므로(`Record<ReferrerCategory, string>`)
+   * `string`으로 열어두면 인덱싱이 막힌다.
+   */
+  @ApiProperty({ enum: ['direct', 'search', 'social', 'other'], example: 'search' })
+  category: 'direct' | 'search' | 'social' | 'other';
 
   @ApiProperty({ example: 30 })
   count: number;
