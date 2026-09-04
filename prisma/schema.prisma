@@ -281,6 +281,8 @@ model PageView {
   ipAddress String?  @map("ip_address") @db.VarChar(45)
   city      String?  @db.VarChar(100)
   country   String?  @db.VarChar(10)
+  /// 항상 false 다. PageViewService.track 이 봇이면 저장 전에 return 하므로
+  /// 봇 트래픽은 이 테이블에 아예 들어오지 않는다(운영 2376행 전부 false).
   isBot     Boolean  @default(false) @map("is_bot")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 

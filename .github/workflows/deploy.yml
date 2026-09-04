@@ -51,15 +51,8 @@ jobs:
             export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
             cd ~/api-server
 
+            # 배포 로직은 저장소의 scripts/deploy.sh 에 있다. 여기서 길게 쓰면
+            # 문법 검사도 로컬 실행도 안 되기 때문이다. 스크립트 자체를 갱신하려면
+            # 먼저 pull 해야 하므로 여기서 한 번 당긴다(스크립트 안에서도 pull 한다).
             git pull origin main
-
-            docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml build --no-cache api
-            docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml up -d
-            docker image prune -f
-
-            for i in $(seq 1 20); do
-              curl -sf http://localhost:4000/health && exit 0
-              sleep 3
-            done
-            echo "Health check failed after 60s"
-            exit 1
+            sh scripts/deploy.sh
