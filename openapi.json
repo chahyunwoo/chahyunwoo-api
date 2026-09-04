@@ -902,6 +902,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostSearchResponseDto"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -1019,6 +1029,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostDetailDto"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -1143,7 +1163,17 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PostSummaryDto"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1162,7 +1192,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryWithTagsDto"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1189,7 +1229,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1230,7 +1277,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1292,7 +1346,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagListResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1319,6 +1380,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostDetailDto"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not Found",
             "content": {
@@ -1383,6 +1454,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostDetailDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -1572,6 +1653,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostDetailDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -1659,6 +1750,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelatedPostsResponseDto"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not Found",
             "content": {
@@ -1706,6 +1807,16 @@
         "operationId": "BlogController_uploadImage",
         "parameters": [],
         "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadImageResponseDto"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -4750,6 +4861,47 @@
           "tags"
         ]
       },
+      "PostSearchResponseDto": {
+        "type": "object",
+        "properties": {
+          "posts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostSummaryDto"
+            }
+          },
+          "total": {
+            "type": "number",
+            "example": 3,
+            "description": "검색 조건에 맞는 전체 건수"
+          },
+          "query": {
+            "type": "string",
+            "example": "react",
+            "description": "검색어(요청의 q를 그대로 되돌려준다)"
+          },
+          "grouped": {
+            "type": "object",
+            "description": "카테고리명을 키로 묶은 결과. 카테고리가 없는 글은 \"Uncategorized\"로 묶인다.",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/PostSummaryDto"
+              }
+            },
+            "example": {
+              "Frontend": [],
+              "Backend": []
+            }
+          }
+        },
+        "required": [
+          "posts",
+          "total",
+          "query",
+          "grouped"
+        ]
+      },
       "PostListResponseDto": {
         "type": "object",
         "properties": {
@@ -4785,6 +4937,67 @@
           "totalPages"
         ]
       },
+      "TagCountDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "React"
+          },
+          "slug": {
+            "type": "string",
+            "example": "react"
+          },
+          "count": {
+            "type": "number",
+            "example": 12,
+            "description": "이 카테고리 안에서 이 태그가 붙은 글 수"
+          }
+        },
+        "required": [
+          "name",
+          "slug",
+          "count"
+        ]
+      },
+      "CategoryWithTagsDto": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "example": "Frontend"
+          },
+          "icon": {
+            "type": "string",
+            "example": "Monitor",
+            "description": "lucide 아이콘 이름"
+          },
+          "count": {
+            "type": "number",
+            "example": 8,
+            "description": "이 카테고리의 발행된 글 수"
+          },
+          "recent": {
+            "type": "boolean",
+            "example": true,
+            "description": "최근 기간 내 새 글이 있는지"
+          },
+          "tags": {
+            "description": "count 내림차순",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagCountDto"
+            }
+          }
+        },
+        "required": [
+          "category",
+          "icon",
+          "count",
+          "recent",
+          "tags"
+        ]
+      },
       "CreateCategoryDto": {
         "type": "object",
         "properties": {
@@ -4804,6 +5017,163 @@
         },
         "required": [
           "name"
+        ]
+      },
+      "CategoryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Frontend"
+          },
+          "icon": {
+            "type": "string",
+            "example": "Monitor",
+            "description": "lucide 아이콘 이름"
+          },
+          "sortOrder": {
+            "type": "number",
+            "example": 1
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "icon",
+          "sortOrder"
+        ]
+      },
+      "TagListResponseDto": {
+        "type": "object",
+        "properties": {
+          "tags": {
+            "description": "글 수 내림차순. 참조가 0인 태그는 제외된다.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagCountDto"
+            }
+          },
+          "total": {
+            "type": "number",
+            "example": 75,
+            "description": "실제로 글에 붙어 있는 태그의 총 개수"
+          }
+        },
+        "required": [
+          "tags",
+          "total"
+        ]
+      },
+      "PostDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "title": {
+            "type": "string",
+            "example": "Next.js 15 App Router 완전 정복"
+          },
+          "slug": {
+            "type": "string",
+            "example": "nextjs-15-app-router"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "미입력 시 content에서 자동 추출"
+          },
+          "thumbnailUrl": {
+            "type": "string",
+            "nullable": true,
+            "example": "https://assets.chahyunwoo.dev/thumbnail/example.png"
+          },
+          "category": {
+            "type": "string",
+            "nullable": true,
+            "example": "Frontend"
+          },
+          "published": {
+            "type": "boolean",
+            "example": true
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "readingTime": {
+            "type": "number",
+            "example": 5,
+            "description": "분 단위 예상 읽기 시간"
+          },
+          "viewCount": {
+            "type": "number",
+            "example": 128
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostTagDto"
+            }
+          },
+          "content": {
+            "type": "string",
+            "description": "MDX 원문",
+            "example": "# 제목\n\n본문입니다."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "slug",
+          "description",
+          "thumbnailUrl",
+          "category",
+          "published",
+          "publishedAt",
+          "readingTime",
+          "viewCount",
+          "createdAt",
+          "updatedAt",
+          "tags",
+          "content"
+        ]
+      },
+      "RelatedPostsResponseDto": {
+        "type": "object",
+        "properties": {
+          "related": {
+            "description": "태그가 겹치는 글 (겹친 수 내림차순)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostSummaryDto"
+            }
+          },
+          "recommended": {
+            "description": "related가 목표 수에 못 미칠 때 최신 글로 채운 분",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostSummaryDto"
+            }
+          }
+        },
+        "required": [
+          "related",
+          "recommended"
         ]
       },
       "CreatePostDto": {
@@ -4897,6 +5267,18 @@
             }
           }
         }
+      },
+      "UploadImageResponseDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "example": "https://assets.chahyunwoo.dev/blog/temp/abc123.png"
+          }
+        },
+        "required": [
+          "url"
+        ]
       },
       "CreateLocaleDto": {
         "type": "object",
