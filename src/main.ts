@@ -8,6 +8,7 @@ import { SwaggerModule } from '@nestjs/swagger';
 
 import { AppModule } from './app.module';
 import { buildSwaggerConfig } from './common/swagger/swagger.config';
+import { MAX_FILE_SIZE } from './common/utils/file-validation.util';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -17,8 +18,11 @@ async function bootstrap() {
 
   await app.register(import('@fastify/cookie'));
   await app.register(helmet);
+  // 한도는 file-validation.util의 MAX_FILE_SIZE 하나만 쓴다. 두 곳에 따로 적으면
+  // 작은 쪽이 먼저 걸러서 큰 쪽 검사가 죽은 코드가 되고, 사용자에게는 표시되지
+  // 않는 메시지만 남는다(실제로 그랬다).
   await app.register(multipart, {
-    limits: { fileSize: 5 * 1024 * 1024 },
+    limits: { fileSize: MAX_FILE_SIZE },
   });
 
   const config = app.get(ConfigService);
