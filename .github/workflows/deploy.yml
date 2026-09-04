@@ -1,7 +1,18 @@
 name: Deploy
 
+# `push: [main]`으로 두면 안 된다. CI와 **병렬로** 돌아 검사가 끝나기 전에
+# 프로덕션 배포가 완료된다. 실측(2026-09-04, 커밋 11a3e27):
+#   CI      시작 02:20:48  종료 02:29:07
+#   Deploy  시작 02:20:48  종료 02:21:51   ← CI보다 7분 16초 먼저 끝남
+# 즉 타입 에러가 있는 커밋도 1분 만에 맥미니에 올라가고, 8분 뒤에야 CI가 빨개진다.
+# 그때는 되돌릴 이전 이미지도 `docker image prune -f`가 이미 지운 뒤다.
+#
+# 그래서 CI가 **성공으로 끝난 뒤에만** 돈다. CI도 `push: [main]` 트리거를
+# 갖고 있으므로 같은 커밋의 CI 실행을 그대로 기다리게 된다.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -9,7 +20,19 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    # workflow_run은 CI가 **실패로** 끝나도 발화하므로 결론을 직접 확인한다.
+    # 수동 실행(workflow_dispatch)에는 선행 CI가 없으니 그 경우는 통과시킨다.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
     steps:
+      - name: 배포 대상 확인
+        run: |
+          echo "trigger: ${{ github.event_name }}"
+          echo "CI conclusion: ${{ github.event.workflow_run.conclusion || 'n/a (manual)' }}"
+          echo "commit: ${{ github.event.workflow_run.head_sha || 'n/a (manual)' }}"
+
       - name: Connect via Tailscale
         uses: tailscale/github-action@v4
         with:
