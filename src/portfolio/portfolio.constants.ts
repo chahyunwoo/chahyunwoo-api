@@ -10,3 +10,12 @@ export const PORTFOLIO_CACHE_TTL = 300_000; // 5 minutes
  * 반영되기까지의 공백이 그대로 길어진다.
  */
 export const LOCALE_CACHE_TTL_MS = 30_000; // 30 seconds
+
+/**
+ * 포트폴리오 콘텐츠가 바뀌었을 때 revalidate를 통보할 프론트 앱 목록.
+ *
+ * `blog`가 들어 있는 것이 핵심이다 — 블로그 앱의 `/about/[locale]`이
+ * 포트폴리오 API를 직접 소비하므로, 포트폴리오만 통보하면 블로그의 소개 페이지가
+ * 영구 stale로 남는다(`DEFAULT_REVALIDATE = false`라 시간 만료가 없다).
+ */
+export const PORTFOLIO_REVALIDATION_TARGETS = ['portfolio', 'blog'] as const;

@@ -349,14 +349,33 @@ export class BlogService {
 
   // ─── Category CRUD ─────────────────────────────────────────────────────────
 
+  /**
+   * 카테고리 변경의 부수효과.
+   *
+   * 프론트는 카테고리 목록을 `BLOG_CATEGORIES` 태그로 캐싱하고
+   * `DEFAULT_REVALIDATE = false`라 시간 만료가 없다. 통보하지 않으면
+   * 아이콘·정렬 변경이 사이드바에 **영구히** 반영되지 않는다.
+   *
+   * 이름 변경만 무효화 대상으로 보면 안 된다 — 아이콘과 정렬 순서도
+   * 화면에 그대로 드러나는 값이다.
+   */
+  private async triggerCategorySideEffects(): Promise<void> {
+    await this.cache.invalidate();
+    this.revalidation
+      .trigger('blog')
+      .catch(err => this.logger.warn('blog revalidation failed', err));
+  }
+
   async createCategory(dto: { name: string; icon?: string; sortOrder?: number }) {
-    return this.prisma.category.create({
+    const result = await this.prisma.category.create({
       data: {
         name: dto.name,
         icon: dto.icon ?? DEFAULT_CATEGORY_ICON,
         sortOrder: dto.sortOrder ?? 0,
       },
     });
+    await this.triggerCategorySideEffects();
+    return result;
   }
 
   async updateCategory(id: number, dto: { name?: string; icon?: string; sortOrder?: number }) {
@@ -386,9 +405,7 @@ export class BlogService {
         return result;
       });
 
-      if (dto.name !== undefined) {
-        await this.cache.invalidate();
-      }
+      await this.triggerCategorySideEffects();
 
       return updated;
     } catch (error) {
@@ -411,6 +428,7 @@ export class BlogService {
 
       await tx.category.delete({ where: { id } });
     });
+    await this.triggerCategorySideEffects();
   }
 
   // ─── Write ────────────────────────────────────────────────────────────────
