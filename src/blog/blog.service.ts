@@ -39,6 +39,14 @@ type PostWithTags = Post & {
 type FinalizeImagesResult = {
   content: string;
   thumbnailUrl?: string | null;
+  /**
+   * 이번 호출에서 실제로 R2에 옮긴 목적지 키.
+   *
+   * 롤백할 때 본문을 다시 파싱해 지울 대상을 유추하면 안 된다 — 부분 실패 시
+   * 본문에는 확정 URL과 아직 못 옮긴 temp URL이 섞여 있어서, 파싱 기반으로
+   * 지우면 재시도에 필요한 temp 원본까지 날아간다.
+   */
+  movedKeys: string[];
   error?: Error;
 };
 
@@ -470,9 +478,23 @@ export class BlogService {
       })) as PostWithTags;
 
       if (finalized.error) {
-        // 이미 옮겨진 이미지의 새 위치는 위에서 DB에 반영했다. 그 뒤에 글을 지운다 —
-        // 순서가 반대면 옮겨진 파일을 가리킬 레코드가 없어져 R2에 고아 파일만 남는다.
         this.logger.error('Image finalization failed, rolling back post', finalized.error);
+
+        // 글을 지우면 옮겨진 파일을 가리킬 레코드가 사라진다. cleanupTempFiles는
+        // `blog/temp/` prefix만 훑으므로 그 파일들은 영원히 회수되지 않는다.
+        // 그래서 레코드를 지우기 **전에** 이번에 옮긴 것만 정리한다.
+        //
+        // 지울 대상을 본문에서 파싱하면 안 된다 — 부분 실패 시 본문에는
+        // 아직 못 옮긴 temp URL도 섞여 있어서, 그것까지 지우면 사용자가
+        // "다시 저장"을 눌러도 원본이 없어 영구히 실패한다.
+        await Promise.all(
+          finalized.movedKeys.map(key =>
+            this.storage
+              .deleteByKey(key)
+              .catch(err => this.logger.warn(`Rollback cleanup failed: ${key}`, err)),
+          ),
+        );
+
         await this.prisma.post
           .delete({ where: { slug } })
           .catch(deleteErr =>
@@ -505,6 +527,20 @@ export class BlogService {
               })
             ).map(pt => pt.tagId)
           : [];
+
+      // 교체당할 옛 썸네일 URL을 미리 확보한다. update 이후에는 알 수 없고,
+      // 지우지 않으면 R2에 영구 고아로 남는다 — cleanupTempFiles는
+      // `blog/temp/` prefix만 훑으므로 `blog/thumbnails/`는 회수 대상이 아니다.
+      // remove()와 updateProfile()은 이미 옛 파일을 지우는데 여기만 빠져 있었다.
+      const previousThumbnailUrl =
+        dto.thumbnailUrl !== undefined
+          ? (
+              await this.prisma.post.findUnique({
+                where: { slug },
+                select: { thumbnailUrl: true },
+              })
+            )?.thumbnailUrl
+          : null;
 
       // DB에 먼저 저장 (temp URL 그대로)
       const post = (await this.prisma.post.update({
@@ -560,11 +596,26 @@ export class BlogService {
           // 매일 3시 StorageCleanupTask가 24시간 뒤 지우므로 다음 날 이미지가 깨진다.
           // 저장 시점에는 정상으로 보여 원인 추적이 어렵다.
           this.logger.error('Image finalization failed during update', finalized.error);
-          await this.triggerPostSideEffects('update', slug, updated.title);
+          // 부분 확정 결과가 이미 커밋됐으므로 캐시 무효화와 revalidation은
+          // 반드시 해야 한다. 다만 action을 'update'로 남기면 어드민 로그에서
+          // 실패한 요청과 성공한 수정이 구별되지 않는다.
+          await this.triggerPostSideEffects('update_partial_failure', slug, updated.title);
           throw new InternalServerErrorException(
             '이미지 확정에 실패했습니다. 글 내용은 저장됐습니다. 이미지를 다시 저장해 주세요.',
           );
         }
+      }
+
+      // 확정까지 성공한 뒤에 옛 썸네일을 지운다. 실패 경로에서 지우면
+      // 사용자가 재시도할 때 되돌아갈 이미지가 없다.
+      if (
+        previousThumbnailUrl &&
+        previousThumbnailUrl !== updated.thumbnailUrl &&
+        !previousThumbnailUrl.startsWith(`${this.storage.getPublicUrl()}/${BLOG_TEMP_PREFIX}/`)
+      ) {
+        this.storage
+          .delete(previousThumbnailUrl)
+          .catch(err => this.logger.warn('Old thumbnail cleanup failed', err));
       }
 
       const result = this.formatPost(updated, true);
@@ -667,21 +718,41 @@ export class BlogService {
     let finalContent = content;
     let finalThumbnail = thumbnailUrl;
 
-    const tempUrls =
-      content.match(
-        new RegExp(`${tempPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^"\\s)]+`, 'g'),
-      ) ?? [];
+    // `match(/g)`는 같은 URL이 본문에 두 번 나오면 **두 번 다** 배열에 넣는다.
+    // 중복을 제거하지 않으면 같은 원본에 move가 두 번 불리는데, move는
+    // Copy → Head → Delete(원본)라서 1회차에 원본이 사라지고 2회차 Copy가
+    // NoSuchKey로 터진다. 즉 도입부와 정리 섹션에 같은 이미지를 넣은 글은
+    // 정상 입력인데도 저장이 실패했다.
+    //
+    // 중복 제거가 `replaceAll`보다 **먼저**다. replaceAll만 넣으면 치환은
+    // 양쪽 다 되지만 move는 여전히 두 번 불려 같은 예외가 난다.
+    const tempUrls = [
+      ...new Set(
+        content.match(
+          new RegExp(`${tempPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^"\\s)]+`, 'g'),
+        ) ?? [],
+      ),
+    ];
+
+    // 실제로 옮긴 목적지를 기록한다. 호출부가 롤백할 때 이 목록만 지우면 되고,
+    // 본문을 다시 파싱해 유추하지 않아도 된다 — 유추하면 아직 옮기지 않은
+    // temp 원본까지 지워서 재시도 가능하던 실패가 복구 불가능해진다.
+    const movedKeys: string[] = [];
 
     for (const tempUrl of tempUrls) {
       const filename = tempUrl.slice(tempPrefix.length);
       const destKey = `blog/posts/${slug}/${filename}`;
       try {
         const newUrl = await this.storage.move(tempUrl, destKey);
-        finalContent = finalContent.replace(tempUrl, newUrl);
+        // 같은 URL이 본문에 여러 번 있으면 전부 바꿔야 한다. `replace`에
+        // 문자열을 넘기면 첫 번째만 치환되어 나머지가 temp를 가리킨 채 남는다.
+        finalContent = finalContent.replaceAll(tempUrl, newUrl);
+        movedKeys.push(destKey);
       } catch (error) {
         return {
           content: finalContent,
           thumbnailUrl: finalThumbnail,
+          movedKeys,
           error: error instanceof Error ? error : new Error(String(error)),
         };
       }
@@ -692,16 +763,18 @@ export class BlogService {
       const destKey = `blog/thumbnails/${generateSlug()}${ext}`;
       try {
         finalThumbnail = await this.storage.move(thumbnailUrl, destKey);
+        movedKeys.push(destKey);
       } catch (error) {
         return {
           content: finalContent,
           thumbnailUrl: finalThumbnail,
+          movedKeys,
           error: error instanceof Error ? error : new Error(String(error)),
         };
       }
     }
 
-    return { content: finalContent, thumbnailUrl: finalThumbnail };
+    return { content: finalContent, thumbnailUrl: finalThumbnail, movedKeys };
   }
 
   private async triggerPostSideEffects(action: string, slug: string, title?: string) {
