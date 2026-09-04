@@ -18,12 +18,23 @@ import { ApiProperty } from '@nestjs/swagger';
 
 // ─── 공통 ─────────────────────────────────────────────────────────────────────
 
+/**
+ * `profiles.social_links`(JSON 컬럼)의 요소.
+ *
+ * `icon`은 프론트가 실제로 쓴다 — 포트폴리오 연락처 섹션이 이 값으로 lucide
+ * 아이콘을 고른다(`contact-section.tsx`의 `ICON_MAP[link.icon.toLowerCase()]`).
+ * 처음 이 DTO를 쓸 때 `name`/`href`만 선언했다가, 프론트를 생성 타입으로
+ * 전환하면서 컴파일 에러로 드러났다.
+ */
 export class SocialLinkDto {
-  @ApiProperty({ example: 'GitHub' })
+  @ApiProperty({ example: 'Github' })
   name: string;
 
   @ApiProperty({ example: 'https://github.com/chahyunwoo' })
   href: string;
+
+  @ApiProperty({ example: 'Github', description: 'lucide 아이콘 이름(대소문자 무관)' })
+  icon: string;
 }
 
 /** 업로드 응답 — `POST /profile/image`, `POST /profile/icon`. */

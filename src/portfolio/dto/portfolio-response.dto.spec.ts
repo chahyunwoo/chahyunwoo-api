@@ -144,6 +144,8 @@ describe('portfolio 응답 스키마', () => {
       ['SkillItemDto', ['id', 'name', 'proficiency', 'description']],
       ['LocaleDto', ['id', 'code', 'label']],
       ['ContactResultDto', ['success', 'message']],
+      // icon이 빠지면 포트폴리오 연락처 섹션이 아이콘을 고르지 못한다
+      ['SocialLinkDto', ['name', 'href', 'icon']],
       ['UploadUrlResponseDto', ['url']],
     ])('%s', (name, fields) => {
       expect([...propsOf(spec.components.schemas[name])].sort()).toEqual([...fields].sort());
