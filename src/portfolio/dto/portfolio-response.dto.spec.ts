@@ -134,7 +134,10 @@ describe('portfolio 응답 스키마', () => {
 
   describe('필드 집합', () => {
     it.each([
-      ['ProfileDto', ['name', 'location', 'imageUrl', 'iconUrl', 'socialLinks', 'jobTitle', 'introduction']],
+      [
+        'ProfileDto',
+        ['name', 'location', 'imageUrl', 'iconUrl', 'socialLinks', 'jobTitle', 'introduction'],
+      ],
       ['ProjectDto', ['id', 'demoUrl', 'repoUrl', 'techStack', 'featured', 'title', 'description']],
       ['EducationDto', ['id', 'period', 'institution', 'degree']],
       ['SkillGroupDto', ['category', 'items']],
