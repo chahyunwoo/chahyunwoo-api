@@ -106,12 +106,21 @@ pnpm openapi:generate    # scripts/generate-openapi.ts → 루트 openapi.json
 | `ALLOWED_ORIGINS` | CORS 허용 오리진 (콤마 구분) |
 
 ## 현재 남은 작업
-- [ ] 포트폴리오 어드민 CRUD (나중에)
+
+**2026-09-04 전수 실측으로 정리함.** 아래 완료 항목들은 실제로는 끝나 있었는데 체크박스만 남아 있었다 —
+이 목록을 근거로 판단하기 전에 재현 명령을 한 번 돌려볼 것.
+
 - [ ] 검색 성능 개선: pg_trgm 인덱스 마이그레이션 (필요 시)
+      확인: `grep -rl trgm prisma/ | wc -l` → 0 (2026-09-04 기준 미적용, 마이그레이션 14개 중 없음)
+
+### 완료 (2026-09-04 실측)
+- [x] 포트폴리오 어드민 CRUD — 8개 리소스(locales/profile/experiences/projects/skills/education/works/contacts)
+      전부 변경 라우트 보유, 총 23개.
+      확인: `grep -cE "@(Post|Put|Patch|Delete)\(" src/portfolio/*.controller.ts` → 23
 - [x] 프론트 연동 후 openapi-typescript 타입 생성 설정 — 파이프라인 구축 완료 (#102)
-- [ ] **나머지 라우트의 Response DTO** — 72개 오퍼레이션 중 성공 응답 스키마가 있는 건
-      `GET /api/blog/posts` 1개뿐이다. 나머지는 프론트가 타입을 생성해도 응답이 비어 쓸 수 없다.
-      단, 본문이 원래 없는 204 라우트(`POST /api/auth/logout` 등)는 대상이 아니다.
-      확인 (프론트 헬퍼가 200 다음 201도 보므로 둘 다 센다):
-      `jq -r '[.paths|to_entries[]|.key as $p|.value|to_entries[]|select((.value.responses["200"].content["application/json"]//.value.responses["201"].content["application/json"])!=null)|"\($p) \(.key)"]|.[]' openapi.json`
-- [ ] 테스트 0건 — `pnpm test`가 `--passWithNoTests`라 CI Test 스텝이 항상 초록인데 아무것도 검사하지 않는다
+- [x] 나머지 라우트의 Response DTO — 72개 오퍼레이션 중 60개가 200/201 JSON 스키마 선언,
+      12개가 본문 없는 204 → **미선언 0건**. (이 항목은 한때 "1개뿐"으로 적혀 있었다.)
+      확인: `jq -r '[.paths|to_entries[]|.key as $p|.value|to_entries[]|select((.value.responses["200"].content["application/json"]//.value.responses["201"].content["application/json"])!=null)|"\($p) \(.key)"]|.[]' openapi.json | wc -l` → 60
+- [x] 테스트 — spec 파일 14개 / 1,789줄, 160건 통과. `pnpm test`도 `jest`이며 `--passWithNoTests`가 아니다.
+      (이 항목은 한때 "테스트 0건 / passWithNoTests라 CI가 항상 초록"으로 적혀 있었다.)
+      확인: `find src -name '*.spec.ts' | wc -l` → 14 / `pnpm jest 2>&1 | grep '^Tests:'` → 160 passed
