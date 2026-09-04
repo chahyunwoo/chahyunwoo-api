@@ -38,7 +38,7 @@ export class CreateExperienceDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  sortOrder?: number = 0;
+  sortOrder?: number;
 
   @ApiProperty()
   @IsString()
@@ -53,7 +53,7 @@ export class CreateExperienceDto {
   @ApiPropertyOptional({ default: false })
   @IsOptional()
   @IsBoolean()
-  isCurrent?: boolean = false;
+  isCurrent?: boolean;
 
   @ApiProperty({ type: [ExperienceTranslationDto] })
   @IsArray()

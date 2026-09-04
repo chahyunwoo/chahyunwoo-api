@@ -37,7 +37,7 @@ export class CreateEducationDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  sortOrder?: number = 0;
+  sortOrder?: number;
 
   @ApiProperty({ type: [EducationTranslationDto] })
   @IsArray()
