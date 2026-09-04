@@ -38,6 +38,16 @@ export class TagCountDto {
 
 /** `GET /api/blog/categories` — 카테고리별 글 수와 그 안의 태그 집계. */
 export class CategoryWithTagsDto {
+  /**
+   * 어드민의 수정·삭제가 이 값을 쓴다(`PUT|DELETE /categories/{id}`).
+   *
+   * nullable인 이유: 이 목록은 **발행된 글의 category 값**을 groupBy한 것이라,
+   * categories 테이블에 없는 이름이 글에 들어가 있으면 매칭되는 레코드가 없다.
+   * 그 경우 수정·삭제 대상이 아니므로 프론트가 버튼을 감춰야 한다.
+   */
+  @ApiProperty({ type: Number, nullable: true, example: 1 })
+  id: number | null;
+
   @ApiProperty({ example: 'Frontend' })
   category: string;
 

@@ -6030,6 +6030,11 @@
       "CategoryWithTagsDto": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "number",
+            "nullable": true,
+            "example": 1
+          },
           "category": {
             "type": "string",
             "example": "Frontend"
@@ -6058,6 +6063,7 @@
           }
         },
         "required": [
+          "id",
           "category",
           "icon",
           "count",
