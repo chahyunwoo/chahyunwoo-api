@@ -18,6 +18,7 @@ import { Public } from '../common/decorators/public.decorator';
 import {
   ApiBadRequest,
   ApiConflict,
+  ApiNoContent,
   ApiNotFound,
   ApiUnauthorized,
 } from '../common/swagger/error-responses';
@@ -163,6 +164,7 @@ export class PortfolioController {
   @ApiCookieAuth()
   @Delete('locales/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContent()
   @ApiUnauthorized()
   @ApiNotFound('Locale')
   deleteLocale(@Param('id', ParseIntPipe) id: number) {
@@ -230,6 +232,7 @@ export class PortfolioController {
   @ApiCookieAuth()
   @Delete('experiences/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContent()
   @ApiUnauthorized()
   @ApiNotFound('Experience')
   deleteExperience(@Param('id', ParseIntPipe) id: number) {
@@ -259,6 +262,7 @@ export class PortfolioController {
   @ApiCookieAuth()
   @Delete('projects/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContent()
   @ApiUnauthorized()
   @ApiNotFound('Project')
   deleteProject(@Param('id', ParseIntPipe) id: number) {
@@ -288,6 +292,7 @@ export class PortfolioController {
   @ApiCookieAuth()
   @Delete('skills/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContent()
   @ApiUnauthorized()
   @ApiNotFound('Skill')
   deleteSkill(@Param('id', ParseIntPipe) id: number) {
@@ -317,6 +322,7 @@ export class PortfolioController {
   @ApiCookieAuth()
   @Delete('education/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContent()
   @ApiUnauthorized()
   @ApiNotFound('Education')
   deleteEducation(@Param('id', ParseIntPipe) id: number) {
@@ -346,6 +352,7 @@ export class PortfolioController {
   @ApiCookieAuth()
   @Delete('works/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContent()
   @ApiUnauthorized()
   @ApiNotFound('Work')
   deleteWork(@Param('id', ParseIntPipe) id: number) {
@@ -385,6 +392,7 @@ export class PortfolioController {
   @ApiCookieAuth()
   @Delete('contacts/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContent()
   @ApiUnauthorized()
   @ApiNotFound('Contact message')
   deleteContact(@Param('id', ParseIntPipe) id: number) {

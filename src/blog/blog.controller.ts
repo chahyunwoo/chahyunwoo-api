@@ -26,6 +26,7 @@ import { Public } from '../common/decorators/public.decorator';
 import {
   ApiBadRequest,
   ApiConflict,
+  ApiNoContent,
   ApiNotFound,
   ApiUnauthorized,
 } from '../common/swagger/error-responses';
@@ -160,6 +161,7 @@ export class BlogController {
   @ApiCookieAuth()
   @Delete('posts/:slug')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContent()
   @ApiUnauthorized()
   @ApiNotFound('Post')
   remove(@Param('slug') slug: string) {
