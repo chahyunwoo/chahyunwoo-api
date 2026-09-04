@@ -199,6 +199,9 @@ export class BlogService {
 
     const recentSet = new Set(recentCategories.map(r => r.category));
     const iconMap = new Map(categoryMeta.map(c => [c.name, c.icon]));
+    // 어드민이 수정·삭제할 때 쓴다. 이 라우트가 카테고리 목록의 유일한 출처인데
+    // id가 없어서, 프론트가 이름을 경로에 넣어 호출하다 400을 맞고 있었다.
+    const idMap = new Map(categoryMeta.map(c => [c.name, c.id]));
 
     // 태그 카운트 집계
     const tagMap = new Map<string, Map<string, { name: string; slug: string; count: number }>>();
@@ -219,6 +222,7 @@ export class BlogService {
 
     const result = categoryCounts
       .map(c => ({
+        id: idMap.get(c.category as string) ?? null,
         category: c.category as string,
         icon: iconMap.get(c.category as string) ?? DEFAULT_CATEGORY_ICON,
         count: c._count,
