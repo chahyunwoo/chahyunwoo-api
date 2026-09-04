@@ -1899,7 +1899,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LocaleDto"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1925,6 +1935,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocaleDto"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -2047,6 +2067,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileDto"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -2133,6 +2163,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileWithTranslationsDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -2183,6 +2223,16 @@
         "operationId": "PortfolioController_getProfileWithTranslations",
         "parameters": [],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileWithTranslationsDto"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not Found",
             "content": {
@@ -2240,6 +2290,19 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExperienceDto"
+                  }
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -2295,6 +2358,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperienceRecordDto"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -2394,6 +2467,19 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectDto"
+                  }
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -2449,6 +2535,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRecordDto"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -2531,7 +2627,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SkillGroupDto"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2557,6 +2663,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillRecordDto"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -2659,6 +2775,19 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkDto"
+                  }
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -2714,6 +2843,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkRecordDto"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -2804,6 +2943,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkDetailDto"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not Found",
             "content": {
@@ -2868,6 +3017,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkRecordDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -3049,6 +3208,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperienceRecordDto"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not Found",
             "content": {
@@ -3113,6 +3282,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperienceRecordDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -3294,6 +3473,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRecordDto"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not Found",
             "content": {
@@ -3358,6 +3547,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRecordDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -3539,6 +3738,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EducationRecordDto"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not Found",
             "content": {
@@ -3603,6 +3812,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EducationRecordDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -3785,6 +4004,19 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EducationDto"
+                  }
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -3840,6 +4072,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EducationRecordDto"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -4014,6 +4256,16 @@
         "operationId": "PortfolioController_uploadProfileImage",
         "parameters": [],
         "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadUrlResponseDto"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -4095,6 +4347,16 @@
         "operationId": "PortfolioController_uploadProfileIcon",
         "parameters": [],
         "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadUrlResponseDto"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -4195,6 +4457,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillRecordDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -4377,6 +4649,16 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactResultDto"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -4433,6 +4715,19 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContactMessageDto"
+                  }
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -4492,6 +4787,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactMessageDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -5280,6 +5585,778 @@
           "url"
         ]
       },
+      "LocaleDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "code": {
+            "type": "string",
+            "example": "ko"
+          },
+          "label": {
+            "type": "string",
+            "example": "한국어"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "label"
+        ]
+      },
+      "SocialLinkDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "GitHub"
+          },
+          "href": {
+            "type": "string",
+            "example": "https://github.com/chahyunwoo"
+          }
+        },
+        "required": [
+          "name",
+          "href"
+        ]
+      },
+      "ProfileDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "차현우"
+          },
+          "location": {
+            "type": "string",
+            "example": "서울, 대한민국"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "iconUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "socialLinks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SocialLinkDto"
+            }
+          },
+          "jobTitle": {
+            "type": "string",
+            "example": "Full-Stack Developer",
+            "description": "번역이 없으면 빈 문자열"
+          },
+          "introduction": {
+            "description": "문단 배열. 번역이 없으면 빈 배열",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "location",
+          "imageUrl",
+          "iconUrl",
+          "socialLinks",
+          "jobTitle",
+          "introduction"
+        ]
+      },
+      "ProfileTranslationDto": {
+        "type": "object",
+        "properties": {
+          "locale": {
+            "type": "string",
+            "example": "ko"
+          },
+          "jobTitle": {
+            "type": "string",
+            "example": "Full-Stack Developer"
+          },
+          "introduction": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "locale",
+          "jobTitle",
+          "introduction"
+        ]
+      },
+      "ProfileWithTranslationsDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "차현우"
+          },
+          "location": {
+            "type": "string",
+            "example": "서울, 대한민국"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "iconUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "socialLinks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SocialLinkDto"
+            }
+          },
+          "translations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileTranslationDto"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "location",
+          "imageUrl",
+          "iconUrl",
+          "socialLinks",
+          "translations"
+        ]
+      },
+      "ExperienceDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "example": false
+          },
+          "title": {
+            "type": "string",
+            "example": "회사명",
+            "description": "번역이 없으면 빈 문자열"
+          },
+          "role": {
+            "type": "string",
+            "example": "Backend Developer",
+            "description": "번역이 없으면 빈 문자열"
+          },
+          "responsibilities": {
+            "description": "번역이 없으면 빈 배열",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "startDate",
+          "endDate",
+          "isCurrent",
+          "title",
+          "role",
+          "responsibilities"
+        ]
+      },
+      "ProjectDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "demoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "repoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "techStack": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "featured": {
+            "type": "boolean",
+            "example": false
+          },
+          "title": {
+            "type": "string",
+            "example": "프로젝트명",
+            "description": "번역이 없으면 빈 문자열"
+          },
+          "description": {
+            "type": "string",
+            "example": "설명",
+            "description": "번역이 없으면 빈 문자열"
+          }
+        },
+        "required": [
+          "id",
+          "demoUrl",
+          "repoUrl",
+          "techStack",
+          "featured",
+          "title",
+          "description"
+        ]
+      },
+      "SkillItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "TypeScript"
+          },
+          "proficiency": {
+            "type": "number",
+            "example": 90,
+            "description": "0-100"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "proficiency",
+          "description"
+        ]
+      },
+      "SkillGroupDto": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "example": "Frontend"
+          },
+          "items": {
+            "description": "sortOrder 오름차순",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SkillItemDto"
+            }
+          }
+        },
+        "required": [
+          "category",
+          "items"
+        ]
+      },
+      "WorkDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "type": {
+            "type": "string",
+            "example": "company",
+            "description": "company | side | freelance 등"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "example": false
+          },
+          "techStack": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "demoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "repoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "featured": {
+            "type": "boolean",
+            "example": false
+          },
+          "gradientColors": {
+            "description": "title과 featured로 서버에서 생성한 그라디언트 색. DB 값이 아니다.",
+            "example": [
+              "#4F46E5",
+              "#7C3AED"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "title": {
+            "type": "string",
+            "example": "프로젝트명",
+            "description": "번역이 없으면 빈 문자열"
+          },
+          "role": {
+            "type": "string",
+            "nullable": true,
+            "description": "번역이 없으면 null"
+          },
+          "summary": {
+            "type": "string",
+            "example": "한 줄 요약",
+            "description": "번역이 없으면 빈 문자열"
+          },
+          "content": {
+            "type": "string",
+            "description": "MDX 본문. 번역이 없으면 빈 문자열"
+          },
+          "highlights": {
+            "description": "번역이 없으면 빈 배열",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "startDate",
+          "endDate",
+          "isCurrent",
+          "techStack",
+          "demoUrl",
+          "repoUrl",
+          "featured",
+          "gradientColors",
+          "title",
+          "role",
+          "summary",
+          "content",
+          "highlights"
+        ]
+      },
+      "WorkTranslationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "workId": {
+            "type": "number",
+            "example": 1
+          },
+          "locale": {
+            "type": "string",
+            "example": "ko"
+          },
+          "title": {
+            "type": "string",
+            "example": "프로젝트명"
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          },
+          "summary": {
+            "type": "string",
+            "example": "한 줄 요약"
+          },
+          "content": {
+            "type": "string",
+            "description": "MDX 본문"
+          },
+          "highlights": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "workId",
+          "locale",
+          "title",
+          "role",
+          "summary",
+          "content",
+          "highlights"
+        ]
+      },
+      "WorkDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "type": {
+            "type": "string",
+            "example": "company"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "example": false
+          },
+          "techStack": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "demoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "repoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "featured": {
+            "type": "boolean",
+            "example": false
+          },
+          "sortOrder": {
+            "type": "number",
+            "example": 0
+          },
+          "translations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkTranslationDto"
+            }
+          },
+          "gradientColors": {
+            "description": "title과 featured로 서버에서 생성한 그라디언트 색. DB 값이 아니다.",
+            "example": [
+              "#4F46E5",
+              "#7C3AED"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "startDate",
+          "endDate",
+          "isCurrent",
+          "techStack",
+          "demoUrl",
+          "repoUrl",
+          "featured",
+          "sortOrder",
+          "translations",
+          "gradientColors"
+        ]
+      },
+      "ExperienceTranslationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "experienceId": {
+            "type": "number",
+            "example": 1
+          },
+          "locale": {
+            "type": "string",
+            "example": "ko"
+          },
+          "title": {
+            "type": "string",
+            "example": "회사명"
+          },
+          "role": {
+            "type": "string",
+            "example": "Backend Developer"
+          },
+          "responsibilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "experienceId",
+          "locale",
+          "title",
+          "role",
+          "responsibilities"
+        ]
+      },
+      "ExperienceRecordDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "example": false
+          },
+          "sortOrder": {
+            "type": "number",
+            "example": 0
+          },
+          "translations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExperienceTranslationDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "startDate",
+          "endDate",
+          "isCurrent",
+          "sortOrder",
+          "translations"
+        ]
+      },
+      "ProjectTranslationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "projectId": {
+            "type": "number",
+            "example": 1
+          },
+          "locale": {
+            "type": "string",
+            "example": "ko"
+          },
+          "title": {
+            "type": "string",
+            "example": "프로젝트명"
+          },
+          "description": {
+            "type": "string",
+            "example": "설명"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "locale",
+          "title",
+          "description"
+        ]
+      },
+      "ProjectRecordDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "demoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "repoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "techStack": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "featured": {
+            "type": "boolean",
+            "example": false
+          },
+          "sortOrder": {
+            "type": "number",
+            "example": 0
+          },
+          "translations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectTranslationDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "demoUrl",
+          "repoUrl",
+          "techStack",
+          "featured",
+          "sortOrder",
+          "translations"
+        ]
+      },
+      "EducationTranslationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "educationId": {
+            "type": "number",
+            "example": 1
+          },
+          "locale": {
+            "type": "string",
+            "example": "ko"
+          },
+          "institution": {
+            "type": "string",
+            "example": "○○대학교"
+          },
+          "degree": {
+            "type": "string",
+            "example": "컴퓨터공학 학사"
+          }
+        },
+        "required": [
+          "id",
+          "educationId",
+          "locale",
+          "institution",
+          "degree"
+        ]
+      },
+      "EducationRecordDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "period": {
+            "type": "string",
+            "example": "2018.03 - 2022.02"
+          },
+          "sortOrder": {
+            "type": "number",
+            "example": 0
+          },
+          "translations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EducationTranslationDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "period",
+          "sortOrder",
+          "translations"
+        ]
+      },
+      "EducationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "period": {
+            "type": "string",
+            "example": "2018.03 - 2022.02"
+          },
+          "institution": {
+            "type": "string",
+            "example": "○○대학교",
+            "description": "번역이 없으면 빈 문자열"
+          },
+          "degree": {
+            "type": "string",
+            "example": "컴퓨터공학 학사",
+            "description": "번역이 없으면 빈 문자열"
+          }
+        },
+        "required": [
+          "id",
+          "period",
+          "institution",
+          "degree"
+        ]
+      },
       "CreateLocaleDto": {
         "type": "object",
         "properties": {
@@ -5295,46 +6372,6 @@
         "required": [
           "code",
           "label"
-        ]
-      },
-      "SocialLinkDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "href": {
-            "type": "string"
-          },
-          "icon": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "href"
-        ]
-      },
-      "ProfileTranslationDto": {
-        "type": "object",
-        "properties": {
-          "locale": {
-            "type": "string"
-          },
-          "jobTitle": {
-            "type": "string"
-          },
-          "introduction": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "locale",
-          "jobTitle",
-          "introduction"
         ]
       },
       "UpdateProfileDto": {
@@ -5366,30 +6403,16 @@
           }
         }
       },
-      "ExperienceTranslationDto": {
+      "UploadUrlResponseDto": {
         "type": "object",
         "properties": {
-          "locale": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string"
-          },
-          "responsibilities": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+          "url": {
+            "type": "string",
+            "example": "https://assets.chahyunwoo.dev/profile/image/abc.png"
           }
         },
         "required": [
-          "locale",
-          "title",
-          "role",
-          "responsibilities"
+          "url"
         ]
       },
       "CreateExperienceDto": {
@@ -5445,24 +6468,6 @@
             }
           }
         }
-      },
-      "ProjectTranslationDto": {
-        "type": "object",
-        "properties": {
-          "locale": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "locale",
-          "title"
-        ]
       },
       "CreateProjectDto": {
         "type": "object",
@@ -5558,6 +6563,43 @@
           "name"
         ]
       },
+      "SkillRecordDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "category": {
+            "type": "string",
+            "example": "Frontend"
+          },
+          "name": {
+            "type": "string",
+            "example": "TypeScript"
+          },
+          "proficiency": {
+            "type": "number",
+            "example": 90
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "example": 0
+          }
+        },
+        "required": [
+          "id",
+          "category",
+          "name",
+          "proficiency",
+          "description",
+          "sortOrder"
+        ]
+      },
       "UpdateSkillDto": {
         "type": "object",
         "properties": {
@@ -5581,25 +6623,6 @@
             "type": "string"
           }
         }
-      },
-      "EducationTranslationDto": {
-        "type": "object",
-        "properties": {
-          "locale": {
-            "type": "string"
-          },
-          "institution": {
-            "type": "string"
-          },
-          "degree": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "locale",
-          "institution",
-          "degree"
-        ]
       },
       "CreateEducationDto": {
         "type": "object",
@@ -5640,38 +6663,6 @@
             }
           }
         }
-      },
-      "WorkTranslationDto": {
-        "type": "object",
-        "properties": {
-          "locale": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string"
-          },
-          "summary": {
-            "type": "string"
-          },
-          "content": {
-            "type": "string"
-          },
-          "highlights": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "locale",
-          "title",
-          "summary",
-          "content"
-        ]
       },
       "CreateWorkDto": {
         "type": "object",
@@ -5723,6 +6714,74 @@
         "required": [
           "type",
           "techStack",
+          "translations"
+        ]
+      },
+      "WorkRecordDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "type": {
+            "type": "string",
+            "example": "company"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "example": false
+          },
+          "techStack": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "demoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "repoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "featured": {
+            "type": "boolean",
+            "example": false
+          },
+          "sortOrder": {
+            "type": "number",
+            "example": 0
+          },
+          "translations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkTranslationDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "startDate",
+          "endDate",
+          "isCurrent",
+          "techStack",
+          "demoUrl",
+          "repoUrl",
+          "featured",
+          "sortOrder",
           "translations"
         ]
       },
@@ -5798,6 +6857,66 @@
           "name",
           "email",
           "message"
+        ]
+      },
+      "ContactResultDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Message sent successfully"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "ContactMessageDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "홍길동"
+          },
+          "email": {
+            "type": "string",
+            "example": "someone@example.com"
+          },
+          "subject": {
+            "type": "string",
+            "nullable": true,
+            "example": "협업 문의"
+          },
+          "message": {
+            "type": "string",
+            "example": "문의 내용입니다."
+          },
+          "read": {
+            "type": "boolean",
+            "example": false
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "subject",
+          "message",
+          "read",
+          "createdAt"
         ]
       }
     }
