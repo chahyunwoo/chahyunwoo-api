@@ -36,7 +36,21 @@ export function safeExtension(mimeType: string): string {
 }
 
 export async function validateAndReadFile(request: MultipartRequest) {
-  const data = await request.file();
+  // `request.file()` 은 본문이 multipart 가 아니면 **null 을 주는 게 아니라 던진다**
+  // (`FastifyError: the request is not multipart`). 그건 HttpException 이 아니라서
+  // 예외 필터의 마지막 분기로 떨어져 **400 이 아니라 500** 이 나간다.
+  //
+  // 그러면 클라이언트 잘못인데 서버 오류로 보고되고, 5xx 를 재시도 대상으로 보는
+  // 호출자(무인 발행 파이프라인)가 고칠 수 없는 요청을 백오프하며 반복한다.
+  //
+  // 위 MAX_FILE_SIZE 주석의 크기 초과 사례와 **같은 형태**다 — multipart 계층이
+  // 던지는 에러를 HttpException 으로 바꿔 주지 않으면 전부 500 이 된다.
+  let data: Awaited<ReturnType<MultipartRequest['file']>>;
+  try {
+    data = await request.file();
+  } catch {
+    throw new BadRequestException('Request must be multipart/form-data');
+  }
   if (!data) throw new BadRequestException('No file provided');
 
   const buffer = await data.toBuffer();
