@@ -192,8 +192,20 @@ export class BlogController {
     return this.blogService.create(dto);
   }
 
+  // 무인 발행: 파이프라인이 자기가 발행한 글을 고친다. 이게 없으면 운영 DB 를
+  // 직접 UPDATE 하게 된다(실제로 그런 일이 있었다) — 그러면 파이프라인이 DB
+  // 스키마에 의존하고, 이미지 확정·재검증 같은 서버 처리를 통째로 우회한다.
+  //
+  // DELETE 는 열지 않는다. 지우는 것은 사람이 판단할 일이다.
+  //
+  // 전체 교체가 아니라 **부분 갱신**이라 안전하다. UpdatePostDto 는
+  // PartialType 이고 service.update() 가 `dto.X !== undefined` 로 보낸 필드만
+  // 갱신하므로, 파이프라인이 title 만 보내도 publishedAt·viewCount 는 남는다.
   @ApiBearerAuth()
   @ApiCookieAuth()
+  @ApiSecurity('machine-key')
+  @MachineKey()
+  @Throttle({ default: { ttl: 3_600_000, limit: 20 } })
   @Put('posts/:slug')
   @ApiOkResponse({ type: PostDetailDto })
   @ApiUnauthorized()
