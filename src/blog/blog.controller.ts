@@ -24,6 +24,7 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from '../auth/auth.service';
+import { MachineKey } from '../common/decorators/machine-key.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import {
   ApiBadRequest,
@@ -173,8 +174,14 @@ export class BlogController {
     return this.blogService.getRelatedPosts(slug);
   }
 
+  // 무인 발행: 파이프라인 스케줄러가 x-machine-key 로 부른다.
+  // 어드민 JWT 경로도 그대로 열려 있다 — 인증 수단이 하나 늘어난 것이다.
+  // 3주에 1회 도는 작업이라 스로틀을 아주 낮게 잡아도 충분하다.
   @ApiBearerAuth()
   @ApiCookieAuth()
+  @ApiSecurity('machine-key')
+  @MachineKey()
+  @Throttle({ default: { ttl: 3_600_000, limit: 10 } })
   @Post('posts')
   @ApiCreatedResponse({ type: PostDetailDto })
   @HttpCode(HttpStatus.CREATED)
@@ -206,8 +213,13 @@ export class BlogController {
     return this.blogService.remove(slug);
   }
 
+  // 무인 발행: 썸네일·본문 이미지를 올린다. 파이프라인은 R2 자격증명을
+  // 갖지 않고 이 엔드포인트를 통한다.
   @ApiBearerAuth()
   @ApiCookieAuth()
+  @ApiSecurity('machine-key')
+  @MachineKey()
+  @Throttle({ default: { ttl: 3_600_000, limit: 40 } })
   @Post('images')
   @ApiCreatedResponse({ type: UploadImageResponseDto })
   @ApiConsumes('multipart/form-data')

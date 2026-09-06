@@ -1308,6 +1308,9 @@
         },
         "security": [
           {
+            "machine-key": []
+          },
+          {
             "cookie": []
           },
           {
@@ -2054,6 +2057,9 @@
           }
         },
         "security": [
+          {
+            "machine-key": []
+          },
           {
             "cookie": []
           },
@@ -5164,6 +5170,11 @@
         "type": "apiKey",
         "in": "header",
         "name": "x-api-key"
+      },
+      "machine-key": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-machine-key"
       }
     },
     "schemas": {
