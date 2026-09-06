@@ -237,49 +237,62 @@ export class AuthService {
     return { accessToken, refreshToken: newRefreshToken };
   }
 
+  // 로그아웃은 미리보기 토큰을 건드리지 않는다.
+  //
+  // 예전에는 여기서 revokeAllPreviewTokens() 를 불렀다. 어드민만 발급하던 시절에는
+  // 말이 됐지만, 지금은 무인 발행 파이프라인도 발급한다 — 사람이 로그아웃할 때마다
+  // 파이프라인이 만든 승인 링크가 죽으면 안 된다. 미리보기 토큰은 어드민 세션과
+  // 수명이 무관하고, slug 에 묶여 미발행 글 하나만 여는 별개의 자격이다.
   async logout(refreshToken: string): Promise<void> {
     const tokenHash = this.hashToken(refreshToken);
     await this.prisma.refreshToken.deleteMany({ where: { tokenHash } });
-    this.revokeAllPreviewTokens();
   }
 
   async logoutAll(username: string): Promise<void> {
     await this.prisma.refreshToken.deleteMany({ where: { username } });
-    this.revokeAllPreviewTokens();
   }
 
+  /**
+   * 만료된 토큰을 치운다. 리프레시 토큰과 미리보기 토큰 **둘 다** 본다 —
+   * 미리보기 토큰은 개수 상한이 없으므로 이 정리가 유일한 회수 경로다.
+   */
   async cleanupExpiredTokens(): Promise<number> {
-    const result = await this.prisma.refreshToken.deleteMany({
-      where: { expiresAt: { lt: new Date() } },
-    });
-    return result.count;
+    const [refresh, preview] = await Promise.all([
+      this.prisma.refreshToken.deleteMany({ where: { expiresAt: { lt: new Date() } } }),
+      this.cleanupPreviewTokens(),
+    ]);
+    return refresh.count + preview;
   }
 
   // ─── Preview Token ────────────────────────────────────────────────────────
 
-  // 토큰 -> { 만료시각, 대상 slug }
-  // slug 를 함께 담는 이유: 예전에는 만료시각만 저장해 한 번 발급된 토큰으로
-  // **모든** 비공개 글을 열 수 있었다. 토큰이 새면 피해가 그 글 하나로
-  // 그치도록 발급 시점의 slug 에 묶는다.
-  private readonly previewTokens = new Map<string, { expiresAt: number; slug: string }>();
-  private static readonly PREVIEW_TOKEN_TTL = 30 * 60 * 1000; // 30 minutes
-  private static readonly MAX_PREVIEW_TOKENS = 10;
+  private static readonly PREVIEW_TOKEN_TTL_SECONDS = 24 * 60 * 60; // 24시간
 
-  createPreviewToken(slug: string): { token: string; expiresIn: number } {
-    this.cleanupPreviewTokens();
-
-    if (this.previewTokens.size >= AuthService.MAX_PREVIEW_TOKENS) {
-      const oldest = this.previewTokens.keys().next().value;
-      if (oldest) this.previewTokens.delete(oldest);
-    }
-
+  /**
+   * 미리보기 토큰을 발급한다.
+   *
+   * slug 에 묶는 이유: 예전에는 만료시각만 저장해 한 번 발급된 토큰으로 **모든**
+   * 비공개 글을 열 수 있었다. 토큰이 새면 피해가 그 글 하나로 그치게 한다.
+   *
+   * DB 에 저장하는 이유: 예전에는 프로세스 메모리(Map)라 **배포·재시작마다 전부
+   * 사라졌다.** 파이프라인이 초안을 올리고 사람이 다음 날 승인하는 흐름에서는
+   * 그 사이 배포가 한 번만 있어도 링크가 죽는다.
+   *
+   * 개수 상한을 두지 않는다. 예전의 MAX 10 + FIFO 축출은 `keys().next().value` 로
+   * **가장 먼저 삽입된 것**을 버려서, 초안이 쌓이면 아직 몇 시간 남은 토큰이 방금
+   * 만든 것 때문에 밀려났다. 만료분은 cleanupExpiredTokens 가 치운다.
+   */
+  async createPreviewToken(slug: string): Promise<{ token: string; expiresIn: number }> {
     const token = randomBytes(32).toString('hex');
-    this.previewTokens.set(token, {
-      expiresAt: Date.now() + AuthService.PREVIEW_TOKEN_TTL,
-      slug,
+    const ttl = AuthService.PREVIEW_TOKEN_TTL_SECONDS;
+
+    await this.prisma.previewToken.create({
+      data: { token, slug, expiresAt: new Date(Date.now() + ttl * 1000) },
     });
 
-    return { token, expiresIn: 1800 };
+    // TTL 에서 유도한다. 예전에는 1800 이 하드코딩돼 있어 상수를 고쳐도 응답값이
+    // 30분 그대로였다 — 파이프라인이 그 값으로 만료 시각을 안내하면 거짓말이 된다.
+    return { token, expiresIn: ttl };
   }
 
   isAuthenticated(token?: string): boolean {
@@ -296,25 +309,28 @@ export class AuthService {
    * `slug` 를 넘기면 그 글에 대해 발급된 토큰인지까지 확인한다.
    * 넘기지 않으면 유효성(존재·만료)만 본다 — 어드민의 토큰 상태 확인용이다.
    */
-  verifyPreviewToken(token: string, slug?: string): boolean {
-    const entry = this.previewTokens.get(token);
-    if (!entry || entry.expiresAt < Date.now()) {
-      this.previewTokens.delete(token);
+  async verifyPreviewToken(token: string, slug?: string): Promise<boolean> {
+    if (!token) return false;
+
+    const entry = await this.prisma.previewToken.findUnique({ where: { token } });
+    if (!entry) return false;
+
+    // Date.now() 로 읽는다 — new Date() 를 쓰면 테스트가 시계를 못 옮겨
+    // 만료 검사가 사실상 검증되지 않는다(실제로 그래서 한 번 놓쳤다).
+    if (entry.expiresAt.getTime() < Date.now()) {
+      await this.prisma.previewToken.delete({ where: { token } }).catch(() => undefined); // 동시 요청이 이미 지웠을 수 있다
       return false;
     }
+
     if (slug !== undefined && entry.slug !== slug) return false;
     return true;
   }
 
-  private revokeAllPreviewTokens(): void {
-    this.previewTokens.clear();
-  }
-
-  private cleanupPreviewTokens(): void {
-    const now = Date.now();
-    for (const [token, entry] of this.previewTokens) {
-      if (entry.expiresAt < now) this.previewTokens.delete(token);
-    }
+  private async cleanupPreviewTokens(): Promise<number> {
+    const result = await this.prisma.previewToken.deleteMany({
+      where: { expiresAt: { lt: new Date(Date.now()) } },
+    });
+    return result.count;
   }
 
   // ─── Private ──────────────────────────────────────────────────────────────
