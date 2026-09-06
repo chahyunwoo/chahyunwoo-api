@@ -159,7 +159,7 @@ export class BlogController {
   async findOnePreview(@Param('slug') slug: string, @Query('token') token: string) {
     // slug 를 함께 넘겨 "이 글에 대해 발급된 토큰인가"까지 확인한다.
     // 넘기지 않으면 토큰 하나로 모든 비공개 글이 열린다.
-    if (!token || !this.authService.verifyPreviewToken(token, slug)) {
+    if (!token || !(await this.authService.verifyPreviewToken(token, slug))) {
       throw new UnauthorizedException('Invalid or expired preview token');
     }
     return this.blogService.findBySlug(slug, true);
