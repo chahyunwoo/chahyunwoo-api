@@ -6,10 +6,12 @@ import {
   ApiCreatedResponse,
   ApiExtraModels,
   ApiOkResponse,
+  ApiSecurity,
   ApiTags,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { MachineKey } from '../common/decorators/machine-key.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { SkipApiKey } from '../common/decorators/skip-api-key.decorator';
 import { ApiBadRequest, ApiUnauthorized } from '../common/swagger/error-responses';
@@ -207,8 +209,15 @@ export class AuthController {
 
   // ─── Preview ──────────────────────────────────────────────────────────────
 
+  // 무인 발행: 파이프라인이 초안을 올린 뒤 승인용 미리보기 링크를 만든다.
+  // 어드민 JWT 전용이면 사람이 로그인해 줘야 링크가 생겨 무인 흐름이 끊긴다.
+  //
+  // 이 토큰은 slug 에 묶여 있고 미발행 글만 연다 — 새어도 범위가 그 글 하나다.
   @ApiBearerAuth()
   @ApiCookieAuth()
+  @ApiSecurity('machine-key')
+  @MachineKey()
+  @Throttle({ default: { ttl: 3_600_000, limit: 20 } })
   @Post('preview-token')
   @ApiCreatedResponse({ type: PreviewTokenDto })
   @HttpCode(HttpStatus.OK)
@@ -219,12 +228,12 @@ export class AuthController {
   @Public()
   @Get('verify-preview')
   @ApiOkResponse({ type: PreviewValidDto })
-  verifyPreview(
+  async verifyPreview(
     @Query('token') token: string,
     @Query('slug') slug: string | undefined,
     @Res() reply: FastifyReply,
   ) {
-    const valid = this.authService.verifyPreviewToken(token, slug);
+    const valid = await this.authService.verifyPreviewToken(token, slug);
     if (!valid) {
       return reply.status(HttpStatus.UNAUTHORIZED).send({
         statusCode: 401,
