@@ -40,6 +40,20 @@ export class ApiKeyGuard implements CanActivate {
     return true;
   }
 
+  /**
+   * 머신 키가 유효한가. 헤더가 없거나 틀리면 false 를 돌려준다 —
+   * 여기서 던지지 않는 이유는 JWT 라는 다른 인증 수단이 남아 있기 때문이다.
+   * 실제 401 은 두 수단이 모두 실패했을 때 JwtAuthGuard 가 던진다.
+   */
+  static hasValidMachineKey(request: FastifyRequest, expected: string): boolean {
+    const provided = request.headers['x-machine-key'];
+    if (!expected || typeof provided !== 'string') return false;
+    // 길이 비교는 바이트 기준이어야 한다(아래 validateApiKey 주석 참고).
+    const a = Buffer.from(provided, 'utf8');
+    const b = Buffer.from(expected, 'utf8');
+    return a.length === b.length && timingSafeEqual(a, b);
+  }
+
   private validateApiKey(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<FastifyRequest>();
     const apiKey = request.headers['x-api-key'];
