@@ -54,7 +54,7 @@
     "otplib": "^13.4.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
-    "pg": "^8.20.0",
+    "pg": "^8.23.0",
     "qrcode": "^1.5.4",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1"
@@ -69,7 +69,7 @@
     "@types/node": "^22.0.0",
     "@types/nodemailer": "^7.0.11",
     "@types/passport-jwt": "^4.0.1",
-    "@types/pg": "^8.20.0",
+    "@types/pg": "^8.23.1",
     "@types/qrcode": "^1.5.6",
     "dotenv": "^17.3.1",
     "fast-glob": "^3.3.3",
