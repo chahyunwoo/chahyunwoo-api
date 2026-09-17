@@ -83,6 +83,23 @@ pnpm openapi:generate    # scripts/generate-openapi.ts → 루트 openapi.json
   검사한다.
 - 생성물이라 biome 검사 대상에서 제외돼 있다(`biome.json`의 `!openapi.json`).
 
+## 작업 사이클
+
+전역 표준을 따른다 — **이슈 → `feature/{이슈번호}-{설명}` → conventional commits → PR `Closes #N` → 리뷰 → 병합 → `/handoff`**.
+(정본: `~/.claude/rules/git-workflow.md`. Codex 는 전역 규칙을 못 읽으므로 이 저장소의 값을 여기 적어 둔다.)
+
+| | |
+|---|---|
+| 트래커 | GitHub Issues (`chahyunwoo/chahyunwoo-api`) |
+| 분기 기준 | `dev` |
+| 승격 경로 | `feature/* → dev → main` |
+| 병합 위임 | **전부 위임** |
+| 리뷰어 | 전역 `code-reviewer` |
+| 검증 | `.claude/verify.sh` |
+| 푸시 = 배포? | 🔴 **예 — `main` 푸시가 곧 프로덕션 배포다**(Actions → Tailscale SSH → 맥미니 Docker). 되돌릴 곳이 없으니 `dev` 검증 후에만 |
+
+⚠️ `stg` 는 **의도적으로 없다**(기여자 1명). 대신 `main` 승격 전 `dev` 검증이 유일한 관문이다.
+
 ## 브랜치 전략
 - `main` — 프로덕션
 - `dev` — 통합 브랜치
