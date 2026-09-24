@@ -79,6 +79,7 @@ src/
 ├── prisma/              # PrismaService (PrismaPg adapter)
 ├── storage/             # Cloudflare R2 StorageService
 ├── revalidation/        # On-demand Revalidation
+├── analytics/           # 페이지뷰·어드민 로그 수집
 └── main.ts              # Fastify + Swagger + CORS
 ```
 
