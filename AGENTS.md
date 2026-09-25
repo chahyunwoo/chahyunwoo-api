@@ -13,7 +13,7 @@ chahyunwoo.dev 블로그 & 포트폴리오 백엔드 API.
 - Prisma migration 은 컨테이너 시작 시 자동 실행된다(`scripts/start.sh`)
 
 ## API 문서
-Swagger UI 는 개발 환경에서만 노출: `http://localhost:4000/docs` (JSON은 `/docs-json`)
+Swagger UI 는 개발 환경에서만 노출: `http://localhost:21801/docs` (JSON은 `/docs-json`)
 
 `openapi.json` — 프론트(`hyunwoo-dev`)가 이 파일에서 API 타입을 생성한다. 저장소가 분리돼 있어 파일로 커밋해 둔다.
 
@@ -28,6 +28,11 @@ pnpm openapi:generate    # scripts/generate-openapi.ts → 루트 openapi.json
 - **DTO를 바꾸면 `pnpm openapi:generate` 후 같이 커밋해야 한다.** CI의 `OpenAPI spec drift check`가
   검사한다.
 - 생성물이라 biome 검사 대상에서 제외돼 있다(`biome.json`의 `!openapi.json`).
+
+## 포트
+
+블록 `21800` (mac) / `21900` (mini). 자리 규약·전체 표는 `~/.claude/reference/포트-배정.md`.
+로컬 api 21801 · pg 21833. 맥미니 배포는 옮기지 않았다 — 4000(`docker-compose.prod.yml`·`scripts/deploy.sh`).
 
 ## 작업 사이클
 
