@@ -57,7 +57,7 @@ docker run -d --name chahyunwoo-api-db-local \
   -e POSTGRES_USER=chwzp \
   -e POSTGRES_PASSWORD=yourpw \
   -e POSTGRES_DB=hyunwoo_local \
-  -p 5432:5432 postgres:16
+  -p 127.0.0.1:21833:5432 postgres:16
 
 # DB 마이그레이션
 pnpm db:migrate:dev --name init
@@ -66,7 +66,7 @@ pnpm db:migrate:dev --name init
 pnpm start:dev
 ```
 
-Swagger UI: [http://localhost:4000/docs](http://localhost:4000/docs)
+Swagger UI: [http://localhost:21801/docs](http://localhost:21801/docs)
 
 ## 🗂️ Project Structure
 
