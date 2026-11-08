@@ -608,6 +608,8 @@ export class BlogService {
           // 반드시 해야 한다. 다만 action을 'update'로 남기면 어드민 로그에서
           // 실패한 요청과 성공한 수정이 구별되지 않는다.
           await this.triggerPostSideEffects('update_partial_failure', slug, updated.title);
+          // 공개 전환은 이미 커밋됐다. 재시도 때는 wasPublished 가 true 라 여기서 안 보내면 영영 누락된다.
+          if (wasPublished === false && updated.published) this.notifyIndexNow(slug);
           throw new InternalServerErrorException(
             '이미지 확정에 실패했습니다. 글 내용은 저장됐습니다. 이미지를 다시 저장해 주세요.',
           );

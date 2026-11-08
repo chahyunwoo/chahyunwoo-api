@@ -25,14 +25,21 @@ describe('BlogService IndexNow 통보', () => {
           row.published = data.published;
           return { ...row };
         }),
-        update: jest.fn(async ({ data }: { data: { published?: boolean } }) => {
+        update: jest.fn(async ({ data }: { data: { published?: boolean; content?: string } }) => {
           if (data.published !== undefined) row.published = data.published;
+          if (data.content !== undefined) row.content = data.content;
           return { ...row };
         }),
         findUnique: jest.fn(async () => ({ ...row })),
       },
       postTag: { findMany: jest.fn(async () => []) },
       tag: { deleteMany: jest.fn(async () => ({ count: 0 })) },
+    };
+    const storage = {
+      getPublicUrl: () => 'https://assets.example.test',
+      move: jest.fn(async (_u: string, k: string) => `https://assets.example.test/${k}`),
+      delete: jest.fn(async () => undefined),
+      deleteByKey: jest.fn(async () => undefined),
     };
     const revalidation = {
       trigger: jest.fn(async () => undefined),
@@ -43,15 +50,7 @@ describe('BlogService IndexNow 통보', () => {
       providers: [
         BlogService,
         { provide: PrismaService, useValue: prisma },
-        {
-          provide: StorageService,
-          useValue: {
-            getPublicUrl: () => 'https://assets.example.test',
-            move: jest.fn(),
-            delete: jest.fn(async () => undefined),
-            deleteByKey: jest.fn(async () => undefined),
-          },
-        },
+        { provide: StorageService, useValue: storage },
         { provide: RevalidationService, useValue: revalidation },
         { provide: AdminLogService, useValue: { log: jest.fn(async () => undefined) } },
         {
@@ -69,7 +68,7 @@ describe('BlogService IndexNow 통보', () => {
         },
       ],
     }).compile();
-    return { service: moduleRef.get(BlogService), revalidation };
+    return { service: moduleRef.get(BlogService), revalidation, storage };
   }
 
   type CreateDto = Parameters<BlogService['create']>[0];
@@ -108,6 +107,17 @@ describe('BlogService IndexNow 통보', () => {
     await service.update('post-slug', { title: '또 수정' } as UpdateDto);
 
     expect(revalidation.notifyIndexNow).not.toHaveBeenCalled();
+  });
+
+  it('공개 전환 중 이미지 확정이 실패해도 통보한다 — 재시도 때는 이미 공개라 다시 기회가 없다', async () => {
+    const { service, revalidation, storage } = await setup({ published: false });
+    storage.move.mockRejectedValueOnce(new Error('move failed'));
+    const content = '![](https://assets.example.test/blog/temp/a.png)';
+
+    await expect(
+      service.update('post-slug', { published: true, content } as UpdateDto),
+    ).rejects.toThrow();
+    expect(revalidation.notifyIndexNow).toHaveBeenCalledTimes(1);
   });
 
   it('통보가 실패해도 발행은 성공한다', async () => {
