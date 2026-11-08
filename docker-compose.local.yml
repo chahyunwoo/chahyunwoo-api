@@ -3,7 +3,7 @@ services:
   api:
     env_file: .env
     ports:
-      - "4000:4000"
+      - "127.0.0.1:21801:4000"   # 호스트 쪽만 블록 21800. 컨테이너 안은 4000(healthcheck·배포와 같음)
     environment:
       NODE_ENV: development
       PORT: 4000
@@ -15,7 +15,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:21833:5432"
     volumes:
       - postgres_local_data:/var/lib/postgresql/data
 
