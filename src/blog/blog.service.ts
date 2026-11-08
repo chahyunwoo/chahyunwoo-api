@@ -505,6 +505,7 @@ export class BlogService {
 
       const result = this.formatPost(updated, true);
       await this.triggerPostSideEffects('create', post.slug, post.title);
+      if (updated.published) this.notifyIndexNow(slug);
       return result;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -527,6 +528,13 @@ export class BlogService {
               })
             ).map(pt => pt.tagId)
           : [];
+
+      // 공개 전환 여부는 update 전 상태와 비교해야 알 수 있다.
+      const wasPublished =
+        dto.published === true
+          ? (await this.prisma.post.findUnique({ where: { slug }, select: { published: true } }))
+              ?.published
+          : undefined;
 
       // 교체당할 옛 썸네일 URL을 미리 확보한다. update 이후에는 알 수 없고,
       // 지우지 않으면 R2에 영구 고아로 남는다 — cleanupTempFiles는
@@ -620,6 +628,7 @@ export class BlogService {
 
       const result = this.formatPost(updated, true);
       await this.triggerPostSideEffects('update', slug, updated.title);
+      if (wasPublished === false && updated.published) this.notifyIndexNow(slug);
       return result;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
@@ -775,6 +784,12 @@ export class BlogService {
     }
 
     return { content: finalContent, thumbnailUrl: finalThumbnail, movedKeys };
+  }
+
+  private notifyIndexNow(slug: string) {
+    this.revalidation
+      .notifyIndexNow(slug)
+      .catch(err => this.logger.warn('IndexNow notify failed', err));
   }
 
   private async triggerPostSideEffects(action: string, slug: string, title?: string) {
