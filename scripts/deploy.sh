@@ -18,7 +18,7 @@
 #    않는다. 그래서 배포 전 pg_dump 를 남긴다 — 복원은 사람이 판단해서 한다.
 set -eu
 
-APP_DIR="${APP_DIR:-$HOME/api-server}"
+APP_DIR="${APP_DIR:-$HOME/dev/own/api-server}"
 HEALTH_URL="${HEALTH_URL:-http://localhost:4000/health}"
 BACKUP_DIR="${BACKUP_DIR:-$HOME/api-server-backups}"
 IMAGE="${IMAGE:-api-server-api}"

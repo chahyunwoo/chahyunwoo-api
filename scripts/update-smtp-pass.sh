@@ -11,7 +11,7 @@ set -euo pipefail
 # 환경변수로 넘긴다.  예)  SMTP_TARGET_HOST=<별칭> bash scripts/...
 HOST="${SMTP_TARGET_HOST:?SMTP_TARGET_HOST 를 지정하라 (예: SMTP_TARGET_HOST=myserver)}"
 DOCKER="/usr/local/bin/docker"
-ENVFILE="~/api-server/.env.prod"
+ENVFILE="~/dev/own/api-server/.env.prod"
 
 echo "대상 서버: $HOST"
 echo "Gmail 앱 비밀번호를 입력하세요 (화면에 표시되지 않습니다)."
@@ -43,7 +43,7 @@ echo "→ SMTP_PASS 교체 중..."
 printf '%s' "$PASS" | ssh "$HOST" "cat > /tmp/.smtp_new && \
   python3 - <<'PY'
 import re, os
-p = os.path.expanduser('~/api-server/.env.prod')
+p = os.path.expanduser('~/dev/own/api-server/.env.prod')
 new = open('/tmp/.smtp_new').read().strip()
 s = open(p, encoding='utf-8').read()
 m = re.search(r'^SMTP_PASS=(.*)\$', s, re.M)
@@ -62,7 +62,7 @@ ssh "$HOST" "awk -F= '/^SMTP_PASS=/{v=substr(\$0,index(\$0,\"=\")+1); print \"  
 
 # 재시작
 echo "→ api 컨테이너 재시작..."
-ssh "$HOST" "cd ~/api-server && $DOCKER compose --env-file .env.prod \
+ssh "$HOST" "cd ~/dev/own/api-server && $DOCKER compose --env-file .env.prod \
   -f docker-compose.yml -f docker-compose.prod.yml up -d api" 2>&1 | tail -3
 
 echo "→ 기동 대기..."
