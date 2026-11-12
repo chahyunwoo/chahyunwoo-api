@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { REFERRER_SPAM_DOMAINS } from './analytics.constants';
+import { referrerSpamFilter } from './analytics.utils';
 
 const MAX_DAYS = 365;
 const MAX_LIMIT = 100;
@@ -65,9 +67,9 @@ export class AnalyticsService {
     );
   }
 
-  private get ipFilter(): Prisma.PageViewWhereInput {
-    if (this.excludeIps.size === 0) return {};
-    return { ipAddress: { notIn: [...this.excludeIps] } };
+  private get excludedViewFilter(): Prisma.PageViewWhereInput {
+    if (this.excludeIps.size === 0) return { AND: [referrerSpamFilter] };
+    return { AND: [referrerSpamFilter, { ipAddress: { notIn: [...this.excludeIps] } }] };
   }
 
   // ─── Dashboard Stats ──────────────────────────────────────────────────────
@@ -154,6 +156,10 @@ export class AnalyticsService {
       LEFT JOIN analytics.page_views pv
         ON pv.path = '/blog/' || p.slug
         AND pv.ip_address NOT IN (${Prisma.join(ips)})
+        AND (pv.referrer IS NULL OR NOT (${Prisma.join(
+          REFERRER_SPAM_DOMAINS.map(domain => Prisma.sql`pv.referrer LIKE ${`%${domain}%`}`),
+          ' OR ',
+        )}))
         ${dateFilter}
       WHERE p.published = true
       GROUP BY p.id
@@ -183,7 +189,7 @@ export class AnalyticsService {
       : undefined;
 
     const where: Prisma.PageViewWhereInput = {
-      ...this.ipFilter,
+      ...this.excludedViewFilter,
       ...(dateFilter && { createdAt: { gte: dateFilter } }),
       ...(appName && { appName }),
     };
@@ -227,7 +233,7 @@ export class AnalyticsService {
     const views = await this.prisma.pageView.findMany({
       where: {
         createdAt: { gte: since },
-        ...this.ipFilter,
+        ...this.excludedViewFilter,
         ...(appName && { appName }),
       },
       select: { referrer: true },
@@ -290,7 +296,7 @@ export class AnalyticsService {
     const views = await this.prisma.pageView.findMany({
       where: {
         createdAt: { gte: since },
-        ...this.ipFilter,
+        ...this.excludedViewFilter,
         ...(appName && { appName }),
       },
       select: {
