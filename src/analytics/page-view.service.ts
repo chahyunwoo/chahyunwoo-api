@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { isSpamReferrer } from './analytics.utils';
 import { GeolocationService } from './geolocation.service';
 
 interface TrackPageViewInput {
@@ -74,6 +75,7 @@ export class PageViewService {
     if (isBot) return;
 
     if (dto.ipAddress && this.excludeIps.has(dto.ipAddress)) return;
+    if (isSpamReferrer(dto.referrer)) return;
 
     const record = await this.prisma.pageView.create({
       data: {
