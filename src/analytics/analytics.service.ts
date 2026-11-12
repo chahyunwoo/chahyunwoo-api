@@ -2,8 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { REFERRER_SPAM_DOMAINS } from './analytics.constants';
-import { referrerSpamFilter } from './analytics.utils';
+import { referrerSpamFilter, referrerSpamSql } from './analytics.utils';
 
 const MAX_DAYS = 365;
 const MAX_LIMIT = 100;
@@ -156,10 +155,7 @@ export class AnalyticsService {
       LEFT JOIN analytics.page_views pv
         ON pv.path = '/blog/' || p.slug
         AND pv.ip_address NOT IN (${Prisma.join(ips)})
-        AND (pv.referrer IS NULL OR NOT (${Prisma.join(
-          REFERRER_SPAM_DOMAINS.map(domain => Prisma.sql`pv.referrer LIKE ${`%${domain}%`}`),
-          ' OR ',
-        )}))
+        AND ${referrerSpamSql}
         ${dateFilter}
       WHERE p.published = true
       GROUP BY p.id

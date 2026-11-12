@@ -6,6 +6,7 @@ describe('isSpamReferrer', () => {
     expect(isSpamReferrer('https://aocr.org/')).toBe(true);
     expect(isSpamReferrer('https://www.aocr.org/some/path')).toBe(true);
     expect(isSpamReferrer('aocr.org')).toBe(true);
+    expect(isSpamReferrer('aocr.org/x')).toBe(true);
     expect(isSpamReferrer('https://AOCR.ORG')).toBe(true);
   });
 
@@ -15,6 +16,8 @@ describe('isSpamReferrer', () => {
     expect(isSpamReferrer(undefined)).toBe(false);
     expect(isSpamReferrer('https://www.google.com/')).toBe(false);
     expect(isSpamReferrer('https://notaocr.org/')).toBe(false);
+    expect(isSpamReferrer('https://aocr.org.evil.com/')).toBe(false);
+    expect(isSpamReferrer('https://example.com/posts/aocr.org')).toBe(false);
   });
 });
 
