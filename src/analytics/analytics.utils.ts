@@ -35,5 +35,5 @@ export const spamReferrerSql: Prisma.Sql = Prisma.sql`(${Prisma.join(
   ' OR ',
 )})`;
 
-// NOT(...) 는 referrer 가 NULL 인 직접 유입까지 걸러내므로 NULL 을 따로 살린다.
-export const referrerSpamSql: Prisma.Sql = Prisma.sql`(pv.referrer IS NULL OR NOT ${spamReferrerSql})`;
+// 직접 유입(NULL·빈 문자열)은 판정이 NULL 이 되어 NOT 으로도 걸러지므로 false 로 접는다.
+export const referrerSpamSql: Prisma.Sql = Prisma.sql`(pv.referrer IS NULL OR NOT COALESCE(${spamReferrerSql}, false))`;
