@@ -18,6 +18,7 @@ describe('isSpamReferrer', () => {
     expect(isSpamReferrer('https://notaocr.org/')).toBe(false);
     expect(isSpamReferrer('https://aocr.org.evil.com/')).toBe(false);
     expect(isSpamReferrer('https://example.com/posts/aocr.org')).toBe(false);
+    expect(isSpamReferrer('https://example.com/?next=https://aocr.org/')).toBe(false);
   });
 });
 

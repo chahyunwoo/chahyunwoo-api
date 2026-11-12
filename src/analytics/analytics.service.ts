@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { referrerSpamFilter, referrerSpamSql } from './analytics.utils';
+import { referrerSpamSql, spamReferrerSql } from './analytics.utils';
 
 const MAX_DAYS = 365;
 const MAX_LIMIT = 100;
@@ -66,9 +66,15 @@ export class AnalyticsService {
     );
   }
 
-  private get excludedViewFilter(): Prisma.PageViewWhereInput {
-    if (this.excludeIps.size === 0) return { AND: [referrerSpamFilter] };
-    return { AND: [referrerSpamFilter, { ipAddress: { notIn: [...this.excludeIps] } }] };
+  // 스팸 리퍼러는 수집 단계에서 막히므로 여기 걸리는 건 차단 이전에 쌓인 행뿐이라 목록이 커지지 않는다.
+  private async excludedViewFilter(): Promise<Prisma.PageViewWhereInput> {
+    const spamRows = await this.prisma.$queryRaw<{ id: number }[]>(
+      Prisma.sql`SELECT pv.id FROM analytics.page_views pv WHERE pv.referrer IS NOT NULL AND ${spamReferrerSql}`,
+    );
+    const conditions: Prisma.PageViewWhereInput[] = [];
+    if (spamRows.length > 0) conditions.push({ id: { notIn: spamRows.map(r => r.id) } });
+    if (this.excludeIps.size > 0) conditions.push({ ipAddress: { notIn: [...this.excludeIps] } });
+    return conditions.length > 0 ? { AND: conditions } : {};
   }
 
   // ─── Dashboard Stats ──────────────────────────────────────────────────────
@@ -185,7 +191,7 @@ export class AnalyticsService {
       : undefined;
 
     const where: Prisma.PageViewWhereInput = {
-      ...this.excludedViewFilter,
+      ...(await this.excludedViewFilter()),
       ...(dateFilter && { createdAt: { gte: dateFilter } }),
       ...(appName && { appName }),
     };
@@ -229,7 +235,7 @@ export class AnalyticsService {
     const views = await this.prisma.pageView.findMany({
       where: {
         createdAt: { gte: since },
-        ...this.excludedViewFilter,
+        ...(await this.excludedViewFilter()),
         ...(appName && { appName }),
       },
       select: { referrer: true },
@@ -292,7 +298,7 @@ export class AnalyticsService {
     const views = await this.prisma.pageView.findMany({
       where: {
         createdAt: { gte: since },
-        ...this.excludedViewFilter,
+        ...(await this.excludedViewFilter()),
         ...(appName && { appName }),
       },
       select: {

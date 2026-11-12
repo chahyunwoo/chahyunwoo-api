@@ -18,56 +18,22 @@ export function isSpamReferrer(referrer?: string | null): boolean {
   try {
     host = new URL(referrer).hostname;
   } catch {
-    host = referrer.split(/[/:]/)[0];
+    host = referrer.split(/[/:?#]/)[0];
   }
   host = host.toLowerCase();
   return REFERRER_SPAM_DOMAINS.some(domain => host === domain || host.endsWith(`.${domain}`));
 }
 
-type ReferrerMatch =
-  | { equals: string }
-  | { startsWith: string }
-  | { endsWith: string }
-  | { contains: string };
+// isSpamReferrer 와 같은 판정을 DB 에서 — 경로·쿼리에 도메인이 들어간 정상 유입을 거르지 않도록 호스트만 본다.
+const referrerHostSql = Prisma.sql`lower(substring(pv.referrer from '^(?:[A-Za-z][A-Za-z0-9+.-]*://)?([^/:?#]+)'))`;
 
-// isSpamReferrer 와 같은 호스트 경계(정확히 일치 또는 서브도메인)를 DB 조회용 패턴으로 옮긴 것.
-function spamReferrerMatches(domain: string): ReferrerMatch[] {
-  return [
-    { equals: domain },
-    { startsWith: `${domain}/` },
-    { startsWith: `${domain}:` },
-    { endsWith: `://${domain}` },
-    { contains: `://${domain}/` },
-    { contains: `://${domain}:` },
-    { endsWith: `.${domain}` },
-    { contains: `.${domain}/` },
-    { contains: `.${domain}:` },
-  ];
-}
-
-function toLikePattern(match: ReferrerMatch): string {
-  const escapeLike = (v: string) => v.replace(/[\\%_]/g, c => `\\${c}`);
-  if ('equals' in match) return escapeLike(match.equals);
-  if ('startsWith' in match) return `${escapeLike(match.startsWith)}%`;
-  if ('endsWith' in match) return `%${escapeLike(match.endsWith)}`;
-  return `%${escapeLike(match.contains)}%`;
-}
-
-const spamMatches = REFERRER_SPAM_DOMAINS.flatMap(spamReferrerMatches);
-
-// NOT(referrer LIKE ..) 는 referrer 가 NULL 인 직접 유입까지 걸러내므로 NULL 을 따로 살린다.
-export const referrerSpamFilter: Prisma.PageViewWhereInput = {
-  OR: [
-    { referrer: null },
-    {
-      NOT: {
-        OR: spamMatches.map(match => ({ referrer: { ...match, mode: 'insensitive' as const } })),
-      },
-    },
-  ],
-};
-
-export const referrerSpamSql: Prisma.Sql = Prisma.sql`(pv.referrer IS NULL OR NOT (${Prisma.join(
-  spamMatches.map(match => Prisma.sql`pv.referrer ILIKE ${toLikePattern(match)}`),
+export const spamReferrerSql: Prisma.Sql = Prisma.sql`(${Prisma.join(
+  REFERRER_SPAM_DOMAINS.map(
+    domain =>
+      Prisma.sql`${referrerHostSql} = ${domain} OR ${referrerHostSql} LIKE ${`%.${domain}`}`,
+  ),
   ' OR ',
-)}))`;
+)})`;
+
+// NOT(...) 는 referrer 가 NULL 인 직접 유입까지 걸러내므로 NULL 을 따로 살린다.
+export const referrerSpamSql: Prisma.Sql = Prisma.sql`(pv.referrer IS NULL OR NOT ${spamReferrerSql})`;
